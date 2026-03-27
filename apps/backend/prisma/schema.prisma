@@ -22,13 +22,18 @@ model Tenant {
 
 model User {
   id           Int      @id @default(autoincrement())
-  email        String   @unique
+  email        String?  @unique
+  phone        String   @unique
   passwordHash String
-  role         String
-  tenantId     Int
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role         String   @default("user")
+  firstName    String
+  lastName     String?
+  isActive     Boolean  @default(true)
+  tenantId     Int?
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([role])
 }
