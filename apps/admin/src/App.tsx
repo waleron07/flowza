@@ -1,11 +1,14 @@
-import './App.css'
+import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './features/auth/model/AuthProvider'
+import { AppRouter } from './app/router/AppRouter'
 
 function App() {
   return (
-    <main>
-      <h1>Flowza Frontend</h1>
-      <p>Frontend scaffold is ready for TDD development.</p>
-    </main>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
 

@@ -1,0 +1,116 @@
+import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
+import { Form, Formik } from 'formik'
+import { useNavigate } from 'react-router-dom'
+import * as Yup from 'yup'
+import { useAuth } from '../../../features/auth/model/useAuth'
+import { sx } from './styles'
+
+const loginValidationSchema = Yup.object({
+  phone: Yup.string()
+    .required('Введите номер телефона')
+    .matches(/^\+7\d{10}$/, 'Введите номер телефона РФ в формате +79991234567'),
+  password: Yup.string()
+    .required('Введите пароль')
+    .min(6, 'Пароль должен содержать минимум 6 символов'),
+})
+
+type LoginFormValues = {
+  phone: string
+  password: string
+}
+
+const initialValues: LoginFormValues = {
+  phone: '',
+  password: '',
+}
+
+export function LoginPage() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+
+  return (
+    <Box component="main" sx={sx.root}>
+      <Paper elevation={0} sx={sx.paper}>
+        <Box sx={sx.header}>
+          <Typography component="h1" variant="h4" sx={sx.title}>
+            Вход в админку Flowza
+          </Typography>
+          <Typography variant="body1" sx={sx.subtitle}>
+            Войдите по номеру телефона и паролю, чтобы перейти в защищенную часть
+            приложения.
+          </Typography>
+        </Box>
+
+        <Formik
+          initialValues={initialValues}
+          validationSchema={loginValidationSchema}
+          validateOnBlur
+          validateOnChange={false}
+          onSubmit={async (values, helpers) => {
+            try {
+              helpers.setStatus(undefined)
+              await login(values)
+              navigate('/', { replace: true })
+            } catch (error) {
+              helpers.setStatus({
+                message: error instanceof Error ? error.message : 'Не удалось выполнить вход',
+              })
+            }
+          }}
+        >
+          {({ errors, touched, handleBlur, handleChange, isSubmitting, status, values }) => (
+            <Form noValidate>
+              <Box sx={sx.form}>
+                {status?.message ? <Alert severity="error">{status.message}</Alert> : null}
+
+                <TextField
+                  autoComplete="tel"
+                  autoFocus
+                  error={Boolean(touched.phone && errors.phone)}
+                  fullWidth
+                  helperText={touched.phone && errors.phone ? errors.phone : ' '}
+                  label="Телефон"
+                  name="phone"
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                  placeholder="+79991234567"
+                  value={values.phone}
+                />
+
+                <TextField
+                  autoComplete="current-password"
+                  error={Boolean(touched.password && errors.password)}
+                  fullWidth
+                  helperText={touched.password && errors.password ? errors.password : ' '}
+                  label="Пароль"
+                  name="password"
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                  placeholder="Введите пароль"
+                  type="password"
+                  value={values.password}
+                />
+
+                <Button
+                  disabled={isSubmitting}
+                  fullWidth
+                  loading={isSubmitting}
+                  sx={sx.submitButton}
+                  type="submit"
+                  variant="contained"
+                >
+                  Войти
+                </Button>
+              </Box>
+            </Form>
+          )}
+        </Formik>
+
+        <Typography variant="body2" sx={sx.footerText}>
+          Экран уже подключен к auth-слою и готов к следующему шагу: layout админки,
+          navigation и рабочие разделы.
+        </Typography>
+      </Paper>
+    </Box>
+  )
+}
