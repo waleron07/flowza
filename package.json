@@ -1,0 +1,27 @@
+{
+  "name": "flowza",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter backend --filter admin --filter web run dev",
+    "dev:backend": "pnpm --filter backend start:dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm -r --filter ./apps/* run build",
+    "build:backend": "pnpm --filter backend build",
+    "build:admin": "pnpm --filter admin build",
+    "build:web": "pnpm --filter web build",
+    "typecheck": "pnpm -r --filter ./apps/* --if-present run typecheck",
+    "lint": "pnpm -r --filter ./apps/* --if-present run lint",
+    "test": "pnpm -r --filter ./apps/* --if-present run test",
+    "clean": "pnpm -r --filter ./apps/* --if-present run clean",
+    "ci:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "test:backend": "pnpm --filter backend test",
+    "test:admin": "pnpm --filter admin test",
+    "test:watch": "pnpm -r --parallel --filter backend --filter admin --if-present run test:watch"
+  },
+  "devDependencies": {
+    "rimraf": "^6.1.3"
+  }
+}
