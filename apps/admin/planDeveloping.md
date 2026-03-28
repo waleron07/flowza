@@ -41,6 +41,24 @@
 
 Это значит, что admin frontend уже можно строить не "в вакууме", а сразу под реальные backend-контракты.
 
+### Кто может входить в админку
+
+В `apps/admin` доступ на вход должен быть только у staff-ролей:
+
+- `superAdmin`
+- `admin`
+- `moderator`
+- `operator`
+
+Роль `user` не должна иметь доступ к админке ни на уровне UX, ни на уровне frontend-роутинга.
+
+Практический вывод:
+
+- успешный `login` в админке не означает просто наличие валидного токена;
+- после `GET /auth/me` frontend обязан проверить роль пользователя;
+- если роль не входит в staff-набор, пользователь не должен попадать в защищенную часть admin-приложения;
+- для роли `user` должен быть отказ во входе в админский интерфейс.
+
 ## 3. Техническая база admin
 
 Текущий стек `apps/admin`:
@@ -135,6 +153,23 @@ src/
   app/
     providers/
     router/
+      ProtectedRouter/
+        Guest/
+          router.tsx
+        SuperAdmin/
+          router.tsx
+          toolpad.tsx
+        Admin/
+          router.tsx
+          toolpad.tsx
+        Moderator/
+          router.tsx
+          toolpad.tsx
+        Operator/
+          router.tsx
+          toolpad.tsx
+      index.tsx
+      utils.tsx
     theme.ts
     layouts/
   pages/
@@ -158,6 +193,32 @@ src/
   test/
 ```
 
+### Подход к роутингу по ролям
+
+Для `apps/admin` принимается role-based структура роутинга по аналогии со скрином, но с учетом реальных staff-ролей backend:
+
+- `Guest`
+- `SuperAdmin`
+- `Admin`
+- `Moderator`
+- `Operator`
+
+Почему именно так:
+
+- так проще добавлять функциональность по ролям без разрастания одного большого роутера;
+- легче изолировать навигацию, layout и toolpad-конфигурацию под каждую роль;
+- проще явно фиксировать доступные разделы для каждой роли;
+- проще тестировать запрет перехода между role-area.
+
+Минимальная логика ветвления:
+
+- `Guest` видит только auth-сценарий;
+- `SuperAdmin` получает полный доступ к административным разделам платформы;
+- `Admin` получает доступ к tenant-управлению своей организации и staff-операциям по своим правилам;
+- `Moderator` получает ограниченный набор рабочих экранов;
+- `Operator` получает самый узкий прикладной набор экранов;
+- `user` не получает ни одной router-ветки в `apps/admin`.
+
 ## 6. Что должно быть в MVP admin
 
 ### Базовый MVP админки
@@ -168,6 +229,7 @@ src/
 - logout;
 - создание staff-пользователей;
 - ограничения UI по ролям.
+- role-based router branches для staff-ролей.
 
 ### Что пока не входит в первый admin MVP
 
@@ -236,7 +298,12 @@ Admin frontend готов к разработке боевых фич.
 - получение текущего пользователя через `GET /auth/me`;
 - недоступность приватных маршрутов без токена;
 - logout очищает сессию;
-- неактивный пользователь не может работать в админке.
+- неактивный пользователь не может работать в админке;
+- пользователь с ролью `user` не попадает в admin router;
+- `superAdmin` попадает в свой router;
+- `admin` попадает в свой router;
+- `moderator` попадает в свой router;
+- `operator` попадает в свой router.
 
 #### После тестов реализовать
 
@@ -245,6 +312,13 @@ Admin frontend готов к разработке боевых фич.
 - auth store / session store;
 - axios interceptor для токена;
 - protected routes;
+- role-based root router;
+- раздельные router-ветки:
+  - `Guest`
+  - `SuperAdmin`
+  - `Admin`
+  - `Moderator`
+  - `Operator`
 - запрос `GET /auth/me`;
 - logout;
 - базовый admin layout.
@@ -257,13 +331,19 @@ Admin frontend готов к разработке боевых фич.
 - токен сохраняется в `localStorage`;
 - `httpClient` автоматически подставляет `Bearer` токен;
 - реализовано восстановление сессии через `GET /auth/me`;
-- работают `protected routes`;
+- роль после `GET /auth/me` проверяется на принадлежность к staff-набору;
+- роль `user` получает отказ во входе в admin UI;
+- root-router переключает приложение между ветками `Guest/SuperAdmin/Admin/Moderator/Operator`;
+- для каждой staff-роли создана отдельная router-ветка и свой `toolpad`-конфиг навигации;
+- `moderator` и `operator` не получают доступ к разделу `staff`;
 - работает `logout`;
 - подключен базовый `AdminLayout` с навигацией;
 - есть тесты на:
   - рендер login-экрана;
   - ошибки валидации;
-  - успешный вход с переходом в защищенную область.
+  - успешный вход с переходом в защищенную область;
+  - отказ для роли `user`;
+  - ограниченный router для `moderator`.
 
 #### Что зависит от backend
 
@@ -275,7 +355,7 @@ Admin frontend готов к разработке боевых фич.
 
 #### Результат этапа
 
-Сотрудник может войти в админку, frontend знает его роль и может строить приватные маршруты.
+Сотрудник может войти в админку, frontend знает его роль и направляет его в соответствующую role-based router-ветку.
 
 ---
 
@@ -380,14 +460,19 @@ Admin frontend готов к разработке боевых фич.
 - скрытие staff-раздела для неподходящих ролей;
 - корректное отображение доступных действий для `admin`;
 - корректное отображение доступных действий для `superAdmin`;
-- запрет перехода на staff route при недостаточных правах.
+- запрет перехода на staff route при недостаточных правах;
+- запрет попадания `moderator` в router-ветку `admin`;
+- запрет попадания `operator` в router-ветку `moderator`;
+- отсутствие router-ветки для `user`.
 
 #### После тестов реализовать
 
 - role-based nav;
 - route guards на frontend;
 - conditional rendering кнопок, экранов и форм;
-- единый helper для проверки ролей.
+- единый helper для проверки ролей;
+- отдельные router-конфигурации под каждую staff-роль;
+- отдельные toolpad/layout-конфигурации под каждую role-area.
 
 #### Результат этапа
 
@@ -400,9 +485,10 @@ Admin frontend готов к разработке боевых фич.
 1. login;
 2. `GET /auth/me`;
 3. protected routes;
-4. logout;
-5. удаление собственного аккаунта;
-6. создание `operator`/`moderator`/`admin` по правилам ролей.
+4. role-based router branching;
+5. logout;
+6. удаление собственного аккаунта;
+7. создание `operator`/`moderator`/`admin` по правилам ролей.
 
 ## 9. Минимальный набор тестов для admin MVP
 
@@ -412,7 +498,9 @@ Admin frontend готов к разработке боевых фич.
 - неуспешный вход;
 - protected route без токена;
 - загрузка текущего пользователя;
-- logout.
+- logout;
+- `user` не получает доступ в admin;
+- `superAdmin`, `admin`, `moderator`, `operator` попадают в свои role-router ветки.
 
 ### Profile
 
@@ -427,17 +515,25 @@ Admin frontend готов к разработке боевых фич.
 - успешное создание `admin` superAdmin;
 - скрытие staff UI для неподходящих ролей.
 
+### Router / Roles
+
+- `SuperAdmin` получает свою ветку роутинга;
+- `Admin` получает свою ветку роутинга;
+- `Moderator` получает свою ветку роутинга;
+- `Operator` получает свою ветку роутинга;
+- `user` не имеет router-ветки в админке;
+- запрещен переход в чужую role-area.
+
 ## 10. Следующие шаги после текущего backend статуса
 
 С учетом того, что backend уже продвинулся по auth и staff management, оптимальный порядок разработки admin сейчас такой:
 
-1. login screen;
-2. auth/session layer;
-3. protected routes;
-4. profile page;
-5. `DELETE /auth/me`;
-6. staff create screen;
-7. role-based UI visibility.
+1. profile page;
+2. `DELETE /auth/me`;
+3. staff create screen;
+4. role-based UI visibility в остальных прикладных разделах;
+5. orders management screen;
+6. tenant-aware admin screens для организаций, меню и категорий.
 
 ## 11. Итог
 
@@ -449,5 +545,12 @@ Admin frontend нужно строить уже не как абстрактну
 - `GET /auth/me`
 - `DELETE /auth/me`
 - `POST /users/staff`
+
+И вокруг router-архитектуры, где staff-роли получают раздельные ветки интерфейса:
+
+- `SuperAdmin`
+- `Admin`
+- `Moderator`
+- `Operator`
 
 Это даст рабочую первую админку без ожидания следующих backend-этапов.

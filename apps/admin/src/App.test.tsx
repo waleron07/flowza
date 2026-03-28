@@ -91,4 +91,48 @@ describe('App', () => {
     expect(screen.getByText(/вы вошли как/i)).toHaveTextContent('Админ')
     expect(window.localStorage.getItem('flowza.admin.accessToken')).toBe('test-token')
   })
+
+  it('не пускает в админку пользователя с ролью user', async () => {
+    const user = userEvent.setup()
+
+    mockedLoginRequest.mockResolvedValue({
+      accessToken: 'user-token',
+      user: {
+        id: 7,
+        phone: '+79991230000',
+        firstName: 'Клиент',
+        role: 'user',
+        tenantId: 3,
+      },
+    })
+
+    renderApp()
+
+    await user.type(screen.getByLabelText(/телефон/i), '+79991230000')
+    await user.type(screen.getByLabelText(/пароль/i), 'secret12')
+    await user.click(screen.getByRole('button', { name: /войти/i }))
+
+    expect(await screen.findByText(/роль user не имеет доступа к админке/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /вход в админку flowza/i })).toBeInTheDocument()
+    expect(window.localStorage.getItem('flowza.admin.accessToken')).toBeNull()
+  })
+
+  it('ограничивает moderator от раздела сотрудников', async () => {
+    window.localStorage.setItem('flowza.admin.accessToken', 'restored-token')
+    window.history.pushState({}, '', '/staff')
+    mockedGetMeRequest.mockResolvedValue({
+      id: 10,
+      phone: '+79995554433',
+      firstName: 'Модератор',
+      role: 'moderator',
+      tenantId: 15,
+    })
+
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: /dashboard flowza/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /сотрудники/i })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Заказы').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/модератор/i).length).toBeGreaterThan(0)
+  })
 })

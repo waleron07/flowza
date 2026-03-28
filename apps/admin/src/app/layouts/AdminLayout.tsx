@@ -13,27 +13,35 @@ import {
 } from '@mui/material'
 import MenuIcon from '@mui/icons-material/Menu'
 import { NavLink, Outlet } from 'react-router-dom'
+import type { PropsWithChildren } from 'react'
 import { useAuth } from '../../features/auth/model/useAuth'
 import { useUiStore } from '../../shared/store/ui-store'
 import { sx } from './admin-layout-styles'
 
-const navigationItems = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/staff', label: 'Сотрудники' },
-  { to: '/orders', label: 'Заказы' },
-]
+export type AdminNavigationItem = {
+  to: string
+  label: string
+}
 
-function NavigationContent() {
+function NavigationContent({
+  navigationItems,
+  subtitle,
+  title,
+}: {
+  navigationItems: AdminNavigationItem[]
+  subtitle: string
+  title: string
+}) {
   const { closeSidebar } = useUiStore()
 
   return (
     <Box sx={sx.drawerContent}>
       <Box sx={sx.logoBlock}>
         <Typography variant="h6" fontWeight={700}>
-          Flowza Admin
+          {title}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Панель управления заказами
+          {subtitle}
         </Typography>
       </Box>
       <Divider />
@@ -64,7 +72,16 @@ function NavigationContent() {
   )
 }
 
-export function AdminLayout() {
+export function AdminLayout({
+  children,
+  navigationItems,
+  subtitle,
+  title,
+}: PropsWithChildren<{
+  navigationItems: AdminNavigationItem[]
+  subtitle: string
+  title: string
+}>) {
   const { logout, user } = useAuth()
   const { closeSidebar, isSidebarOpen, toggleSidebar } = useUiStore()
 
@@ -77,7 +94,7 @@ export function AdminLayout() {
               <MenuIcon />
             </IconButton>
             <Typography component="div" variant="h6" fontWeight={700}>
-              Админка Flowza
+              {title}
             </Typography>
           </Box>
           <Box sx={sx.toolbarRight}>
@@ -99,11 +116,15 @@ export function AdminLayout() {
           slotProps={{ paper: { sx: sx.drawerPaper } }}
           variant="temporary"
         >
-          <NavigationContent />
+          <NavigationContent
+            navigationItems={navigationItems}
+            subtitle={subtitle}
+            title={title}
+          />
         </Drawer>
 
         <Box component="main" sx={sx.content}>
-          <Outlet />
+          {children ?? <Outlet />}
         </Box>
       </Box>
     </Box>

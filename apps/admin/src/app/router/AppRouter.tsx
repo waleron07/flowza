@@ -1,15 +1,14 @@
 import { Box, CircularProgress } from '@mui/material'
-import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '../../features/auth/model/useAuth'
-import { AdminLayout } from '../layouts/AdminLayout'
-import { LoginPage } from '../../pages/auth/login/LoginPage'
-import { DashboardPage } from '../../pages/dashboard/DashboardPage'
-import { OrdersPage } from '../../pages/orders/OrdersPage'
-import { StaffPage } from '../../pages/staff/StaffPage'
-import { ProtectedRoute } from './ProtectedRoute'
+import { userRoles } from '../../shared/types/users'
+import { GuestRouter } from './ProtectedRouter/Guest/router'
+import { SuperAdminRouter } from './ProtectedRouter/SuperAdmin/router'
+import { AdminRouter } from './ProtectedRouter/Admin/router'
+import { ModeratorRouter } from './ProtectedRouter/Moderator/router'
+import { OperatorRouter } from './ProtectedRouter/Operator/router'
 
-function LoginRoute() {
-  const { status } = useAuth()
+export function AppRouter() {
+  const { status, user } = useAuth()
 
   if (status === 'loading') {
     return (
@@ -26,30 +25,20 @@ function LoginRoute() {
     )
   }
 
-  if (status === 'authenticated') {
-    return <Navigate replace to="/" />
+  if (status === 'guest' || !user) {
+    return <GuestRouter />
   }
 
-  return <LoginPage />
-}
-
-export function AppRouter() {
-  return (
-    <Routes>
-      <Route path="/login" element={<LoginRoute />} />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="staff" element={<StaffPage />} />
-        <Route path="orders" element={<OrdersPage />} />
-      </Route>
-      <Route path="*" element={<Navigate replace to="/" />} />
-    </Routes>
-  )
+  switch (user.role) {
+    case userRoles.superAdmin:
+      return <SuperAdminRouter />
+    case userRoles.admin:
+      return <AdminRouter />
+    case userRoles.moderator:
+      return <ModeratorRouter />
+    case userRoles.operator:
+      return <OperatorRouter />
+    default:
+      return <GuestRouter />
+  }
 }

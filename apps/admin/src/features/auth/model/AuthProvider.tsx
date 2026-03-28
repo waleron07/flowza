@@ -9,6 +9,7 @@ import { getMeRequest, loginRequest } from '../api/authApi'
 import { getAccessToken, removeAccessToken, setAccessToken } from '../../../shared/lib/token-storage'
 import type { AuthUser, LoginRequestDto } from '../../../shared/types/auth'
 import { AuthContext, type AuthStatus } from './auth-context'
+import { isStaffRole } from '../../../app/router/utils'
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>(() =>
@@ -27,6 +28,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     void getMeRequest(token)
       .then((restoredUser) => {
+        if (!isStaffRole(restoredUser.role)) {
+          removeAccessToken()
+
+          if (!active) {
+            return
+          }
+
+          setUser(null)
+          setStatus('guest')
+          return
+        }
+
         if (!active) {
           return
         }
@@ -52,6 +65,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const login = useCallback(async (payload: LoginRequestDto) => {
     const result = await loginRequest(payload)
+
+    if (!isStaffRole(result.user.role)) {
+      removeAccessToken()
+      throw new Error('Роль user не имеет доступа к админке')
+    }
 
     setAccessToken(result.accessToken)
     setUser(result.user)

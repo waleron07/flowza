@@ -13,11 +13,17 @@ datasource db {
 }
 
 model Tenant {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
+  id          Int        @id @default(autoincrement())
+  name        String
+  slug        String     @unique
+  description String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       User[]
+  categories  Category[]
+  products    Product[]
+  orders      Order[]
 }
 
 model User {
@@ -31,9 +37,77 @@ model User {
   isActive     Boolean  @default(true)
   tenantId     Int?
   tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  orders       Order[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([tenantId])
   @@index([role])
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@unique([tenantId, name])
+}
+
+model Product {
+  id          Int         @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId  Int
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  price       Int
+  currency    String      @default("RUB")
+  isActive    Boolean     @default(true)
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([tenantId])
+  @@index([categoryId])
+  @@unique([tenantId, name])
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status      String      @default("new")
+  totalAmount Int
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity   Int
+  unitPrice  Int
+  totalPrice Int
+
+  @@index([orderId])
+  @@index([productId])
 }
