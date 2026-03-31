@@ -13,72 +13,129 @@ datasource db {
 }
 
 model Tenant {
-  id          Int        @id @default(autoincrement())
-  name        String
-  slug        String     @unique
-  description String?
-  isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  users       User[]
-  categories  Category[]
-  products    Product[]
-  orders      Order[]
+  id               Int                  @id @default(autoincrement())
+  name             String
+  slug             String               @unique
+  description      String?
+  isActive         Boolean              @default(true)
+  subscription     DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  users            User[]
+  staffAssignments UserTenantAccess[]
+  mainImage        Image[]              @relation("TenantMainImages")
+  additionalImage  Image[]              @relation("TenantAdditionalImages")
+  categories       Category[]
+  products         Product[]
+  orders           Order[]
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String?  @unique
-  phone        String   @unique
-  passwordHash String
-  role         String   @default("user")
-  firstName    String
-  lastName     String?
-  isActive     Boolean  @default(true)
-  tenantId     Int?
-  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  orders       Order[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               Int                @id @default(autoincrement())
+  email            String?            @unique
+  phone            String             @unique
+  passwordHash     String
+  role             String             @default("user")
+  firstName        String
+  lastName         String?
+  isActive         Boolean            @default(true)
+  avatarId         Int?
+  tenantId         Int?
+  avatar           Image?             @relation("UserAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  tenant           Tenant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  staffAssignments UserTenantAccess[]
+  orders           Order[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
+  @@index([avatarId])
   @@index([tenantId])
   @@index([role])
 }
 
+model UserTenantAccess {
+  userId     Int
+  tenantId   Int
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tenantId])
+  @@index([tenantId])
+}
+
 model Category {
-  id          Int       @id @default(autoincrement())
-  tenantId    Int
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  isActive    Boolean   @default(true)
-  sortOrder   Int       @default(0)
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              Int       @id @default(autoincrement())
+  tenantId        Int
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  isActive        Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  mainImage       Image[]   @relation("CategoryMainImages")
+  additionalImage Image[]   @relation("CategoryAdditionalImages")
+  products        Product[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([tenantId])
   @@unique([tenantId, name])
 }
 
 model Product {
-  id          Int         @id @default(autoincrement())
-  tenantId    Int
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categoryId  Int
-  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  name        String
-  description String?
-  price       Int
-  currency    String      @default("RUB")
-  isActive    Boolean     @default(true)
-  orderItems  OrderItem[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id              Int         @id @default(autoincrement())
+  tenantId        Int
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId      Int
+  category        Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name            String
+  description     String?
+  price           Int
+  discountAll     Int         @default(0)
+  discountStaff   Int         @default(0)
+  discountDay     Int         @default(0)
+  discountWeek    Int         @default(0)
+  discountMonth   Int         @default(0)
+  currency        String      @default("RUB")
+  isActive        Boolean     @default(true)
+  mainImage       Image[]     @relation("ProductMainImages")
+  additionalImage Image[]     @relation("ProductAdditionalImages")
+  orderItems      OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([tenantId])
   @@index([categoryId])
   @@unique([tenantId, name])
+}
+
+model Image {
+  id                  Int       @id @default(autoincrement())
+  url                 String
+  alt                 String?
+  sortOrder           Int       @default(0)
+  avatarUsers         User[]    @relation("UserAvatar")
+  tenantMainId        Int?
+  tenantAdditionalId  Int?
+  categoryMainId      Int?
+  categoryAdditionalId Int?
+  productMainId       Int?
+  productAdditionalId Int?
+  tenantMain          Tenant?   @relation("TenantMainImages", fields: [tenantMainId], references: [id], onDelete: Cascade)
+  tenantAdditional    Tenant?   @relation("TenantAdditionalImages", fields: [tenantAdditionalId], references: [id], onDelete: Cascade)
+  categoryMain        Category? @relation("CategoryMainImages", fields: [categoryMainId], references: [id], onDelete: Cascade)
+  categoryAdditional  Category? @relation("CategoryAdditionalImages", fields: [categoryAdditionalId], references: [id], onDelete: Cascade)
+  productMain         Product?  @relation("ProductMainImages", fields: [productMainId], references: [id], onDelete: Cascade)
+  productAdditional   Product?  @relation("ProductAdditionalImages", fields: [productAdditionalId], references: [id], onDelete: Cascade)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([tenantMainId])
+  @@index([tenantAdditionalId])
+  @@index([categoryMainId])
+  @@index([categoryAdditionalId])
+  @@index([productMainId])
+  @@index([productAdditionalId])
 }
 
 model Order {

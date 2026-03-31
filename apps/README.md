@@ -4,11 +4,11 @@
 
 ## Три части продукта
 
-| Пакет | Назначение | Стек (по проекту) |
-|--------|------------|-------------------|
-| **`backend`** | HTTP API, бизнес-логика, данные | NestJS, Prisma, JWT/Passport |
-| **`web`** | Публичный клиент для конечных пользователей | Vite, React |
-| **`admin`** | Внутренняя панель (операции, сотрудники и т.д.) | Vite, React, MUI |
+| Пакет         | Назначение                                      | Стек (по проекту)            |
+| ------------- | ----------------------------------------------- | ---------------------------- |
+| **`backend`** | HTTP API, бизнес-логика, данные                 | NestJS, Prisma, JWT/Passport |
+| **`web`**     | Публичный клиент для конечных пользователей     | Vite, React                  |
+| **`admin`**   | Внутренняя панель (операции, сотрудники и т.д.) | Vite, React, MUI             |
 
 **Связь:** `web` и `admin` — отдельные фронтенды; оба опираются на **`backend`** как на единый источник API и авторизации. Деплой и масштабирование у каждого приложения могут быть независимыми.
 
@@ -29,5 +29,23 @@
 - `pnpm dev` — параллельно backend, admin и web (см. корневой `package.json`)
 - `pnpm dev:backend` / `pnpm dev:admin` / `pnpm dev:web` — по одному приложению
 - `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` — по всем приложениям в `apps/*`, где есть соответствующие скрипты
+
+## Как запускать Prisma
+
+`Prisma` используется в `apps/backend`, поэтому команды лучше запускать из корня монорепозитория через `pnpm --filter backend`.
+
+Перед запуском Prisma нужно:
+
+- убедиться, что локально поднят `PostgreSQL`;
+- проверить корректность `DATABASE_URL` в `apps/backend/.env.development`.
+
+Основные команды:
+
+- применить миграции к локальной БД:
+  `pnpm --filter backend exec prisma migrate dev`
+- сгенерировать Prisma Client:
+  `pnpm --filter backend exec prisma generate`
+- открыть Prisma Studio:
+  `pnpm --filter backend exec prisma studio --port 5555`
 
 Подробности по отдельным приложениям — в их локальных `README.md` внутри `apps/backend`, `apps/web`, `apps/admin`.

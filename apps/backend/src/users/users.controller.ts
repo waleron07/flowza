@@ -22,8 +22,10 @@ export class UsersController {
   ) {
     return this.usersManagementService.createByPrivilegedUser(
       {
+        userId: req.user.userId,
         role: req.user.role,
         tenantId: req.user.tenantId,
+        organizationIds: req.user.organizationIds,
       },
       dto,
     );

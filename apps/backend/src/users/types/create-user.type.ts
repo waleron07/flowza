@@ -2,6 +2,7 @@ import { UserRole } from '../../common/enums/user-role.enum';
 
 export interface CreateUserInput {
   tenantId?: number;
+  organizationIds?: number[];
   email?: string;
   phone: string;
   passwordHash: string;

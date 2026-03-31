@@ -22,11 +22,13 @@ export class AuthService {
   private createPayload(user: {
     id: number;
     tenantId: number | null;
+    organizationIds?: number[];
     role: string;
   }): JwtPayload {
     return {
       userId: user.id,
       tenantId: user.tenantId,
+      organizationIds: user.organizationIds ?? [],
       role: user.role as UserRole,
     };
   }
@@ -64,6 +66,7 @@ export class AuthService {
         firstName: user.firstName,
         role: user.role,
         tenantId: user.tenantId,
+        organizationIds: user.organizationIds ?? [],
       },
     };
   }
@@ -93,6 +96,7 @@ export class AuthService {
         firstName: user.firstName,
         role: user.role,
         tenantId: user.tenantId,
+        organizationIds: user.organizationIds ?? [],
       },
     };
   }
@@ -114,6 +118,7 @@ export class AuthService {
       lastName: user.lastName,
       role: user.role,
       tenantId: user.tenantId,
+      organizationIds: user.organizationIds ?? [],
       isActive: user.isActive,
     };
   }

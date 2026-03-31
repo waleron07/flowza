@@ -1,5 +1,8 @@
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   Matches,
@@ -30,4 +33,10 @@ export class CreateStaffUserDto {
 
   @IsOptional()
   tenantId?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsInt({ each: true })
+  organizationIds?: number[];
 }

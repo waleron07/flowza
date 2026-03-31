@@ -11,6 +11,7 @@ import { UserRole } from '../../src/common/enums/user-role.enum';
 interface InMemoryUser {
   id: number;
   tenantId: number | null;
+  organizationIds: number[];
   email: string | null;
   phone: string;
   passwordHash: string;
@@ -35,9 +36,12 @@ class InMemoryUsersService {
   }
 
   create(input: CreateUserInput) {
+    const organizationIds = input.organizationIds ?? (input.tenantId ? [input.tenantId] : []);
+
     const user: InMemoryUser = {
       id: this.currentId++,
       tenantId: input.tenantId ?? null,
+      organizationIds,
       email: input.email ?? null,
       phone: input.phone,
       passwordHash: input.passwordHash,
@@ -270,6 +274,7 @@ describe('E2E проверки авторизации', () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
         tenantId: 42,
+        organizationIds: [42],
         email: null,
         phone: '+79990000006',
         passwordHash,
@@ -337,6 +342,7 @@ describe('E2E проверки авторизации', () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
         tenantId: 42,
+        organizationIds: [42],
         email: null,
         phone: '+79990000015',
         passwordHash,
@@ -372,6 +378,7 @@ describe('E2E проверки авторизации', () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
         tenantId: 42,
+        organizationIds: [42],
         email: null,
         phone: '+79990000008',
         passwordHash,
@@ -407,6 +414,7 @@ describe('E2E проверки авторизации', () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
         tenantId: null,
+        organizationIds: [77],
         email: null,
         phone: '+79990000010',
         passwordHash,
@@ -444,6 +452,44 @@ describe('E2E проверки авторизации', () => {
       };
       expect(createdBody.role).toBe(UserRole.ADMIN);
       expect(createdBody.tenantId).toBe(77);
+    });
+
+    it('блокирует доступ по старому токену после деактивации пользователя', async () => {
+      const passwordHash = await bcrypt.hash('password123', 10);
+      const admin = usersService.seed({
+        tenantId: 42,
+        organizationIds: [42],
+        email: null,
+        phone: '+79990000017',
+        passwordHash,
+        role: UserRole.ADMIN,
+        firstName: 'Деактивированный админ',
+        lastName: null,
+        isActive: true,
+      });
+
+      const loginResponse = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          phone: '+79990000017',
+          password: 'password123',
+        })
+        .expect(201);
+
+      const loginBody = loginResponse.body as { accessToken: string };
+
+      usersService.deactivateById(admin.id);
+
+      await request(app.getHttpServer())
+        .post('/users/staff')
+        .set('Authorization', `Bearer ${loginBody.accessToken}`)
+        .send({
+          phone: '+79990000018',
+          firstName: 'Новый оператор',
+          password: 'password123',
+          role: UserRole.OPERATOR,
+        })
+        .expect(401);
     });
   });
 });
