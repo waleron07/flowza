@@ -55,8 +55,7 @@ describe('Сервис продуктов', () => {
     productCreateMock.mockResolvedValue({
       id: 1,
       name: 'Маргарита',
-      discountAll: 10,
-      discountStaff: 15,
+      currency: 'RUB',
     });
 
     await expect(
@@ -67,20 +66,19 @@ describe('Сервис продуктов', () => {
           categoryId: 5,
           name: 'Маргарита',
           price: 500,
-          discountAll: 10,
-          discountStaff: 15,
         },
       ),
     ).resolves.toEqual({
       id: 1,
       name: 'Маргарита',
-      discountAll: 10,
-      discountStaff: 15,
+      currency: 'RUB',
     });
     expect(productCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        discountAll: 10,
-        discountStaff: 15,
+        tenantId: 10,
+        categoryId: 5,
+        price: 500,
+        currency: 'RUB',
       }),
     });
   });
@@ -134,20 +132,21 @@ describe('Сервис продуктов', () => {
     productUpdateMock.mockResolvedValue({
       id: 1,
       name: 'Обновлено',
-      discountMonth: 25,
+      currency: 'USD',
     });
 
     await expect(
       service.update(
         { role: UserRole.MODERATOR, organizationIds: [10] },
         1,
-        { name: 'Обновлено', discountMonth: 25 },
+        { name: 'Обновлено', currency: 'USD' },
       ),
-    ).resolves.toEqual({ id: 1, name: 'Обновлено', discountMonth: 25 });
+    ).resolves.toEqual({ id: 1, name: 'Обновлено', currency: 'USD' });
     expect(productUpdateMock).toHaveBeenCalledWith({
       where: { id: 1 },
       data: expect.objectContaining({
-        discountMonth: 25,
+        name: 'Обновлено',
+        currency: 'USD',
       }),
     });
   });

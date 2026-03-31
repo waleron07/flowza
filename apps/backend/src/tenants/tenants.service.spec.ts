@@ -57,8 +57,18 @@ describe('Сервис организаций', () => {
         slug: 'roma-pizza',
         description: 'Итальянская кухня',
         subscription: '2026-12-31T00:00:00.000Z',
+        timezone: 'Europe/Moscow',
+        deliveryFee: 199,
+        minOrderAmount: 1000,
       }),
     ).resolves.toEqual({ id: 1, name: 'Roma Pizza' });
+    expect(tenantCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        timezone: 'Europe/Moscow',
+        deliveryFee: 199,
+        minOrderAmount: 1000,
+      }),
+    });
   });
 
   it('возвращает доступные организации сотрудника', async () => {
@@ -157,9 +167,19 @@ describe('Сервис организаций', () => {
         {
           isActive: false,
           subscription: '2026-12-31T00:00:00.000Z',
+          timezone: 'Europe/Moscow',
+          deliveryFee: 250,
         },
       ),
     ).resolves.toEqual({ id: 10, isActive: false });
+    expect(tenantUpdateMock).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        timezone: 'Europe/Moscow',
+        deliveryFee: 250,
+        isActive: false,
+      }),
+    });
   });
 
   it('удаляет существующую организацию', async () => {

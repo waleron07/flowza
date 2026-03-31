@@ -10,7 +10,7 @@ import { UserRole } from '../../src/common/enums/user-role.enum';
 
 interface InMemoryUser {
   id: number;
-  tenantId: number | null;
+  primaryTenantId: number | null;
   organizationIds: number[];
   email: string | null;
   phone: string;
@@ -36,11 +36,13 @@ class InMemoryUsersService {
   }
 
   create(input: CreateUserInput) {
-    const organizationIds = input.organizationIds ?? (input.tenantId ? [input.tenantId] : []);
+    const organizationIds =
+      input.organizationIds ??
+      (input.primaryTenantId ? [input.primaryTenantId] : []);
 
     const user: InMemoryUser = {
       id: this.currentId++,
-      tenantId: input.tenantId ?? null,
+      primaryTenantId: input.primaryTenantId ?? null,
       organizationIds,
       email: input.email ?? null,
       phone: input.phone,
@@ -273,7 +275,7 @@ describe('E2E проверки авторизации', () => {
     it('разрешает admin создавать operator', async () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
-        tenantId: 42,
+        primaryTenantId: 42,
         organizationIds: [42],
         email: null,
         phone: '+79990000006',
@@ -307,10 +309,10 @@ describe('E2E проверки авторизации', () => {
 
       const createdBody = createResponse.body as {
         role: UserRole;
-        tenantId: number;
+        primaryTenantId: number;
       };
       expect(createdBody.role).toBe(UserRole.OPERATOR);
-      expect(createdBody.tenantId).toBe(42);
+      expect(createdBody.primaryTenantId).toBe(42);
     });
 
     it('запрещает user создавать staff-пользователей', async () => {
@@ -341,7 +343,7 @@ describe('E2E проверки авторизации', () => {
     it('запрещает moderator создавать staff-пользователей', async () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
-        tenantId: 42,
+        primaryTenantId: 42,
         organizationIds: [42],
         email: null,
         phone: '+79990000015',
@@ -377,7 +379,7 @@ describe('E2E проверки авторизации', () => {
     it('запрещает admin создавать admin', async () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
-        tenantId: 42,
+        primaryTenantId: 42,
         organizationIds: [42],
         email: null,
         phone: '+79990000008',
@@ -413,7 +415,7 @@ describe('E2E проверки авторизации', () => {
     it('разрешает superAdmin создавать admin', async () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       usersService.seed({
-        tenantId: null,
+        primaryTenantId: null,
         organizationIds: [77],
         email: null,
         phone: '+79990000010',
@@ -442,22 +444,22 @@ describe('E2E проверки авторизации', () => {
           firstName: 'Админ организации',
           password: 'password123',
           role: UserRole.ADMIN,
-          tenantId: 77,
+          primaryTenantId: 77,
         })
         .expect(201);
 
       const createdBody = createResponse.body as {
         role: UserRole;
-        tenantId: number;
+        primaryTenantId: number;
       };
       expect(createdBody.role).toBe(UserRole.ADMIN);
-      expect(createdBody.tenantId).toBe(77);
+      expect(createdBody.primaryTenantId).toBe(77);
     });
 
     it('блокирует доступ по старому токену после деактивации пользователя', async () => {
       const passwordHash = await bcrypt.hash('password123', 10);
       const admin = usersService.seed({
-        tenantId: 42,
+        primaryTenantId: 42,
         organizationIds: [42],
         email: null,
         phone: '+79990000017',

@@ -12,22 +12,88 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  superAdmin
+  admin
+  moderator
+  operator
+  user
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  COOKING
+  READY
+  DELIVERING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum ImageEntityType {
+  PRODUCT
+  CATEGORY
+  TENANT
+  USER
+}
+
+enum ImageType {
+  MAIN
+  GALLERY
+  AVATAR
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  APPLE_PAY
+  GOOGLE_PAY
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+  DAY
+  WEEK
+  MONTH
+  PROMO
+}
+
+enum PromoCodeType {
+  PERCENT
+  FIXED
+}
+
 model Tenant {
   id               Int                  @id @default(autoincrement())
   name             String
   slug             String               @unique
   description      String?
   isActive         Boolean              @default(true)
+  phone            String?
+  address          String?
+  timezone         String               @default("UTC")
+  workingHours     Json?
+  deliveryFee      Int                  @default(0)
+  minOrderAmount   Int                  @default(0)
   subscription     DateTime?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
-  users            User[]
+  primaryUsers     User[]
   staffAssignments UserTenantAccess[]
-  mainImage        Image[]              @relation("TenantMainImages")
-  additionalImage  Image[]              @relation("TenantAdditionalImages")
   categories       Category[]
   products         Product[]
+  addresses        Address[]
+  carts            Cart[]
   orders           Order[]
+  promoCodes       PromoCode[]
+  discounts        Discount[]
 }
 
 model User {
@@ -35,21 +101,25 @@ model User {
   email            String?            @unique
   phone            String             @unique
   passwordHash     String
-  role             String             @default("user")
+  role             UserRole           @default(user)
   firstName        String
   lastName         String?
   isActive         Boolean            @default(true)
   avatarId         Int?
-  tenantId         Int?
+  primaryTenantId  Int?
   avatar           Image?             @relation("UserAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
-  tenant           Tenant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  primaryTenant    Tenant?            @relation(fields: [primaryTenantId], references: [id], onDelete: SetNull)
   staffAssignments UserTenantAccess[]
+  addresses        Address[]
+  carts            Cart[]
+  reviews          Review[]
+  auditLogs        AuditLog[]
   orders           Order[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@index([avatarId])
-  @@index([tenantId])
+  @@index([primaryTenantId])
   @@index([role])
 }
 
@@ -71,9 +141,8 @@ model Category {
   name            String
   description     String?
   isActive        Boolean   @default(true)
+  deletedAt       DateTime?
   sortOrder       Int       @default(0)
-  mainImage       Image[]   @relation("CategoryMainImages")
-  additionalImage Image[]   @relation("CategoryAdditionalImages")
   products        Product[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -91,15 +160,15 @@ model Product {
   name            String
   description     String?
   price           Int
-  discountAll     Int         @default(0)
-  discountStaff   Int         @default(0)
-  discountDay     Int         @default(0)
-  discountWeek    Int         @default(0)
-  discountMonth   Int         @default(0)
   currency        String      @default("RUB")
   isActive        Boolean     @default(true)
-  mainImage       Image[]     @relation("ProductMainImages")
-  additionalImage Image[]     @relation("ProductAdditionalImages")
+  deletedAt       DateTime?
+  variants        ProductVariant[]
+  modifiers       Modifier[]
+  modifierGroups  ModifierGroup[]
+  discounts       Discount[]
+  reviews         Review[]
+  cartItems       CartItem[]
   orderItems      OrderItem[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -110,61 +179,260 @@ model Product {
 }
 
 model Image {
-  id                  Int       @id @default(autoincrement())
-  url                 String
-  alt                 String?
-  sortOrder           Int       @default(0)
-  avatarUsers         User[]    @relation("UserAvatar")
-  tenantMainId        Int?
-  tenantAdditionalId  Int?
-  categoryMainId      Int?
-  categoryAdditionalId Int?
-  productMainId       Int?
-  productAdditionalId Int?
-  tenantMain          Tenant?   @relation("TenantMainImages", fields: [tenantMainId], references: [id], onDelete: Cascade)
-  tenantAdditional    Tenant?   @relation("TenantAdditionalImages", fields: [tenantAdditionalId], references: [id], onDelete: Cascade)
-  categoryMain        Category? @relation("CategoryMainImages", fields: [categoryMainId], references: [id], onDelete: Cascade)
-  categoryAdditional  Category? @relation("CategoryAdditionalImages", fields: [categoryAdditionalId], references: [id], onDelete: Cascade)
-  productMain         Product?  @relation("ProductMainImages", fields: [productMainId], references: [id], onDelete: Cascade)
-  productAdditional   Product?  @relation("ProductAdditionalImages", fields: [productAdditionalId], references: [id], onDelete: Cascade)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id          Int             @id @default(autoincrement())
+  url         String
+  entityId    Int
+  entityType  ImageEntityType
+  type        ImageType
+  alt         String?
+  sortOrder   Int             @default(0)
+  avatarUsers User[]          @relation("UserAvatar")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
-  @@index([tenantMainId])
-  @@index([tenantAdditionalId])
-  @@index([categoryMainId])
-  @@index([categoryAdditionalId])
-  @@index([productMainId])
-  @@index([productAdditionalId])
+  @@index([entityType, entityId])
+  @@index([type])
+}
+
+model Address {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tenantId  Int?
+  label     String?
+  address   String
+  lat       Float?
+  lng       Float?
+  comment   String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model ProductVariant {
+  id         Int         @id @default(autoincrement())
+  productId  Int
+  name       String
+  price      Int
+  currency   String      @default("RUB")
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@index([productId])
+}
+
+model Modifier {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  price              Int
+  productId          Int
+  groupId            Int?
+  sortOrder          Int                 @default(0)
+  deletedAt          DateTime?
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  group              ModifierGroup?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  orderItemModifiers OrderItemModifier[]
+  cartItemModifiers  CartItemModifier[]
+
+  @@index([productId])
+  @@index([groupId])
+}
+
+model ModifierGroup {
+  id         Int        @id @default(autoincrement())
+  productId  Int
+  name       String
+  minSelect  Int        @default(0)
+  maxSelect  Int        @default(1)
+  sortOrder  Int        @default(0)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifiers  Modifier[]
+
+  @@index([productId])
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  tenantId    Int
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  userId      Int
-  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  status      String      @default("new")
-  totalAmount Int
-  items       OrderItem[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id            Int           @id @default(autoincrement())
+  orderNumber   String        @unique
+  tenantId      Int
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  promoCodeId   Int?
+  addressId     Int?
+  promoCode     PromoCode?    @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  address       Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  status        OrderStatus   @default(NEW)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  currency      String        @default("RUB")
+  deliveryAddress String
+  deliveryLat   Float?
+  deliveryLng   Float?
+  paidAt        DateTime?
+  confirmedAt   DateTime?
+  deliveredAt   DateTime?
+  cancelledAt   DateTime?
+  subtotal      Int
+  deliveryFee   Int
+  discountAmount Int         @default(0)
+  finalAmount   Int
+  items         OrderItem[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([tenantId])
   @@index([userId])
+  @@index([addressId])
+  @@index([promoCodeId])
   @@index([status])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
 }
 
 model OrderItem {
-  id         Int      @id @default(autoincrement())
-  orderId    Int
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId  Int
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity   Int
-  unitPrice  Int
-  totalPrice Int
+  id               Int                 @id @default(autoincrement())
+  orderId          Int
+  order            Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        Int
+  product          Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variantId        Int?
+  variant          ProductVariant?     @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  productName      String
+  variantName      String?
+  quantity         Int
+  unitPrice        Int
+  originalPrice    Int
+  discountApplied  Int                 @default(0)
+  totalPrice       Int
+  modifiers        OrderItemModifier[]
 
   @@index([orderId])
   @@index([productId])
+  @@index([variantId])
+}
+
+model OrderItemModifier {
+  id          Int       @id @default(autoincrement())
+  orderItemId Int
+  modifierId  Int
+  name        String
+  price       Int
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifier    Modifier  @relation(fields: [modifierId], references: [id], onDelete: Restrict)
+
+  @@index([orderItemId])
+  @@index([modifierId])
+}
+
+model Cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int
+  tenantId  Int
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model CartItem {
+  id        Int                @id @default(autoincrement())
+  cartId    Int
+  productId Int
+  variantId Int?
+  quantity  Int                @default(1)
+  cart      Cart               @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant?    @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  modifiers CartItemModifier[]
+
+  @@index([cartId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model CartItemModifier {
+  id         Int      @id @default(autoincrement())
+  cartItemId Int
+  modifierId Int
+  name       String
+  price      Int
+  cartItem   CartItem @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  modifier   Modifier @relation(fields: [modifierId], references: [id], onDelete: Restrict)
+
+  @@index([cartItemId])
+  @@index([modifierId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String
+  entity    String
+  entityId  Int
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  productId Int
+  rating    Int
+  comment   String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([productId])
+  @@unique([userId, productId])
+}
+
+model PromoCode {
+  id        Int      @id @default(autoincrement())
+  code      String
+  tenantId   Int?
+  type      PromoCodeType
+  value     Int
+  maxUses   Int?
+  usedCount Int      @default(0)
+  expiresAt DateTime?
+  isActive  Boolean  @default(true)
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders    Order[]
+  createdAt DateTime @default(now())
+
+  @@unique([code, tenantId])
+  @@index([tenantId])
+}
+
+model Discount {
+  id        Int       @id @default(autoincrement())
+  productId Int?
+  tenantId  Int?
+  type      DiscountType
+  value     Int
+  isActive  Boolean   @default(true)
+  priority  Int       @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  product   Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([tenantId])
+  @@index([type])
 }

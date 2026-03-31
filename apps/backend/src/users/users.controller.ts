@@ -24,7 +24,7 @@ export class UsersController {
       {
         userId: req.user.userId,
         role: req.user.role,
-        tenantId: req.user.tenantId,
+        primaryTenantId: req.user.primaryTenantId,
         organizationIds: req.user.organizationIds,
       },
       dto,

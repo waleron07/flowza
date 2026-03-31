@@ -21,30 +21,5 @@ export class CreateProductDto {
   price: number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  discountAll?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  discountStaff?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  discountDay?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  discountWeek?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  discountMonth?: number;
-
-  @IsOptional()
   currency?: string;
 }

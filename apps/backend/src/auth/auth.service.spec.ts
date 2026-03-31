@@ -37,7 +37,7 @@ describe('Сервис авторизации', () => {
     findByPhoneMock.mockResolvedValue(null);
     createUserMock.mockResolvedValue({
       id: 10,
-      tenantId: null,
+      primaryTenantId: null,
       phone: '+79991234567',
       firstName: 'Ivan',
       role: UserRole.USER,
@@ -96,7 +96,7 @@ describe('Сервис авторизации', () => {
     const passwordHash = await bcrypt.hash('password123', 10);
     findByPhoneMock.mockResolvedValue({
       id: 11,
-      tenantId: null,
+      primaryTenantId: null,
       phone: '+79991234567',
       firstName: 'Ivan',
       role: UserRole.USER,
@@ -117,7 +117,7 @@ describe('Сервис авторизации', () => {
     const passwordHash = await bcrypt.hash('password123', 10);
     findByPhoneMock.mockResolvedValue({
       id: 11,
-      tenantId: null,
+      primaryTenantId: null,
       phone: '+79991234567',
       firstName: 'Ivan',
       role: UserRole.USER,
@@ -140,7 +140,7 @@ describe('Сервис авторизации', () => {
       firstName: 'Ivan',
       role: UserRole.USER,
       isActive: true,
-      tenantId: null,
+      primaryTenantId: null,
     });
     deactivateByIdMock.mockResolvedValue({
       id: 15,
@@ -165,7 +165,7 @@ describe('Сервис авторизации', () => {
   it('возвращает профиль активного пользователя', async () => {
     findByIdMock.mockResolvedValue({
       id: 17,
-      tenantId: null,
+      primaryTenantId: null,
       phone: '+79990000017',
       firstName: 'Павел',
       lastName: 'Иванов',
@@ -182,7 +182,7 @@ describe('Сервис авторизации', () => {
   it('не возвращает профиль неактивного пользователя', async () => {
     findByIdMock.mockResolvedValue({
       id: 18,
-      tenantId: null,
+      primaryTenantId: null,
       phone: '+79990000018',
       firstName: 'Сергей',
       lastName: null,

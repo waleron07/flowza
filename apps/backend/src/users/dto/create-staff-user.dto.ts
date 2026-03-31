@@ -32,7 +32,8 @@ export class CreateStaffUserDto {
   role: UserRole;
 
   @IsOptional()
-  tenantId?: number;
+  @IsInt()
+  primaryTenantId?: number;
 
   @IsOptional()
   @IsArray()

@@ -44,7 +44,7 @@ describe('Контроллер категорий', () => {
           user: {
             userId: 1,
             role: UserRole.ADMIN,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },
@@ -62,7 +62,7 @@ describe('Контроллер категорий', () => {
           user: {
             userId: 1,
             role: UserRole.ADMIN,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },
@@ -83,7 +83,7 @@ describe('Контроллер категорий', () => {
           user: {
             userId: 1,
             role: UserRole.MODERATOR,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },
@@ -102,7 +102,7 @@ describe('Контроллер категорий', () => {
           user: {
             userId: 1,
             role: UserRole.MODERATOR,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },

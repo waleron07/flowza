@@ -50,7 +50,7 @@ export class UsersManagementService {
     actor: {
       userId: number;
       role: UserRole;
-      tenantId: number | null;
+      primaryTenantId: number | null;
       organizationIds?: number[];
     },
     dto: CreateStaffUserDto,
@@ -70,8 +70,8 @@ export class UsersManagementService {
       dto.organizationIds,
     );
 
-    if (!organizationIds.length && dto.tenantId) {
-      organizationIds = [dto.tenantId];
+    if (!organizationIds.length && dto.primaryTenantId) {
+      organizationIds = [dto.primaryTenantId];
     }
 
     if (!organizationIds.length && actor.role !== UserRole.SUPER_ADMIN) {
@@ -95,10 +95,11 @@ export class UsersManagementService {
       organizationIds,
     );
 
-    const tenantId = organizationIds[0] ?? actor.tenantId ?? undefined;
+    const primaryTenantId =
+      organizationIds[0] ?? actor.primaryTenantId ?? undefined;
 
     return this.usersService.create({
-      tenantId,
+      primaryTenantId,
       organizationIds,
       email: dto.email,
       phone: dto.phone,

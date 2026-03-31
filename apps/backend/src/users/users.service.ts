@@ -9,7 +9,7 @@ export class UsersService {
 
   private async getOrganizationIdsForUser(
     userId: number,
-    fallbackTenantId: number | null,
+    fallbackPrimaryTenantId: number | null,
   ): Promise<number[]> {
     const assignments = await this.prisma.userTenantAccess.findMany({
       where: { userId },
@@ -21,12 +21,12 @@ export class UsersService {
       return assignments.map((assignment) => assignment.tenantId);
     }
 
-    return fallbackTenantId ? [fallbackTenantId] : [];
+    return fallbackPrimaryTenantId ? [fallbackPrimaryTenantId] : [];
   }
 
   private mapUserRecord(user: {
     id: number;
-    tenantId: number | null;
+    primaryTenantId: number | null;
     email: string | null;
     phone: string;
     passwordHash: string;
@@ -40,7 +40,7 @@ export class UsersService {
   }): UserRecord {
     return {
       id: user.id,
-      tenantId: user.tenantId,
+      primaryTenantId: user.primaryTenantId,
       organizationIds: user.organizationIds,
       email: user.email,
       phone: user.phone,
@@ -64,7 +64,7 @@ export class UsersService {
 
     const organizationIds = await this.getOrganizationIdsForUser(
       user.id,
-      user.tenantId,
+      user.primaryTenantId,
     );
 
     return this.mapUserRecord({
@@ -83,7 +83,7 @@ export class UsersService {
 
     const organizationIds = await this.getOrganizationIdsForUser(
       user.id,
-      user.tenantId,
+      user.primaryTenantId,
     );
 
     return this.mapUserRecord({
@@ -120,7 +120,7 @@ export class UsersService {
 
     const organizationIds = await this.getOrganizationIdsForUser(
       user.id,
-      user.tenantId,
+      user.primaryTenantId,
     );
 
     return this.mapUserRecord({
@@ -133,12 +133,12 @@ export class UsersService {
     const organizationIds = [...new Set(input.organizationIds ?? [])].sort(
       (left, right) => left - right,
     );
-    const tenantId = input.tenantId ?? organizationIds[0];
+    const primaryTenantId = input.primaryTenantId ?? organizationIds[0];
 
     const user = await this.prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
-          tenantId,
+          primaryTenantId,
           email: input.email,
           phone: input.phone,
           passwordHash: input.passwordHash,
@@ -166,8 +166,8 @@ export class UsersService {
       ...user,
       organizationIds: organizationIds.length
         ? organizationIds
-        : tenantId
-          ? [tenantId]
+        : primaryTenantId
+          ? [primaryTenantId]
           : [],
     });
   }

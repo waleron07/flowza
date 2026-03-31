@@ -1,4 +1,13 @@
-import { IsDateString, IsNotEmpty, IsOptional, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export class CreateTenantDto {
   @IsNotEmpty()
@@ -17,4 +26,30 @@ export class CreateTenantDto {
   @IsOptional()
   @IsDateString()
   subscription?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @IsOptional()
+  @IsObject()
+  workingHours?: Record<string, unknown>;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  deliveryFee?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  minOrderAmount?: number;
 }

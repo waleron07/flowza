@@ -25,7 +25,7 @@ describe('JWT стратегия', () => {
   it('принимает токен активного пользователя', async () => {
     findByIdMock.mockResolvedValue({
       id: 11,
-      tenantId: 42,
+      primaryTenantId: 42,
       organizationIds: [42, 43],
       role: UserRole.ADMIN,
       isActive: true,
@@ -34,13 +34,13 @@ describe('JWT стратегия', () => {
     await expect(
       strategy.validate({
         userId: 11,
-        tenantId: 42,
+        primaryTenantId: 42,
         organizationIds: [42, 43],
         role: UserRole.ADMIN,
       }),
     ).resolves.toEqual({
       userId: 11,
-      tenantId: 42,
+      primaryTenantId: 42,
       organizationIds: [42, 43],
       role: UserRole.ADMIN,
     });
@@ -50,7 +50,7 @@ describe('JWT стратегия', () => {
     await expect(
       strategy.validate({
         userId: 0,
-        tenantId: null,
+        primaryTenantId: null,
         organizationIds: [],
         role: UserRole.USER,
       }),
@@ -63,7 +63,7 @@ describe('JWT стратегия', () => {
     await expect(
       strategy.validate({
         userId: 404,
-        tenantId: null,
+        primaryTenantId: null,
         organizationIds: [],
         role: UserRole.USER,
       }),
@@ -73,7 +73,7 @@ describe('JWT стратегия', () => {
   it('отклоняет токен для неактивного пользователя', async () => {
     findByIdMock.mockResolvedValue({
       id: 12,
-      tenantId: null,
+      primaryTenantId: null,
       organizationIds: [],
       role: UserRole.USER,
       isActive: false,
@@ -82,7 +82,7 @@ describe('JWT стратегия', () => {
     await expect(
       strategy.validate({
         userId: 12,
-        tenantId: null,
+        primaryTenantId: null,
         organizationIds: [],
         role: UserRole.USER,
       }),

@@ -105,7 +105,7 @@ describe('Контроллер организаций', () => {
         user: {
           userId: 10,
           role: UserRole.ADMIN,
-          tenantId: 5,
+          primaryTenantId: 5,
           organizationIds: [5, 6],
         },
       }),
@@ -125,6 +125,7 @@ describe('Контроллер организаций', () => {
         name: 'Flowza Cafe',
         slug: 'flowza-cafe',
         description: 'Кафе',
+        timezone: 'Europe/Moscow',
       }),
     ).resolves.toEqual(tenant);
     expect(service.createTenant).toHaveBeenCalledTimes(1);
@@ -141,7 +142,7 @@ describe('Контроллер организаций', () => {
           user: {
             userId: 10,
             role: UserRole.ADMIN,
-            tenantId: 5,
+            primaryTenantId: 5,
             organizationIds: [5, 6],
           },
         },

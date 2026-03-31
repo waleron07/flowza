@@ -1,6 +1,6 @@
 export interface UserRecord {
   id: number;
-  tenantId: number | null;
+  primaryTenantId: number | null;
   organizationIds: number[];
   email: string | null;
   phone: string;

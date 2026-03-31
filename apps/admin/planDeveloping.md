@@ -26,10 +26,24 @@
 - `GET /auth/me`
 - `DELETE /auth/me`
 - `POST /users/staff`
+- `GET /tenants`
+- `GET /tenants/accessible`
+- `POST /tenants`
+- `PATCH /tenants/:tenantId`
+- `DELETE /tenants/:tenantId`
+- `GET /categories`
+- `POST /categories`
+- `PATCH /categories/:categoryId`
+- `DELETE /categories/:categoryId`
+- `GET /products`
+- `POST /products`
+- `PATCH /products/:productId`
+- `DELETE /products/:productId`
 
 Также уже есть:
 
 - `JWT`-авторизация;
+- auth-контракт уже возвращает `primaryTenantId` и `organizationIds`;
 - роли:
   - `superAdmin`
   - `admin`
@@ -69,6 +83,7 @@
 - `superAdmin` имеет доступ ко всем организациям платформы;
 - admin frontend должен быть готов к переключению активной организации в рамках доступного пользователю списка;
 - все экраны админки, связанные с данными организации, должны учитывать текущий выбранный организационный контекст;
+- backend уже отдает список доступных организаций для staff через `GET /tenants/accessible`;
 - `user` не участвует в staff-модели и не имеет доступа к админке.
 
 #### Управление организациями
@@ -86,6 +101,7 @@
 - `admin` и `superAdmin` могут редактировать роли `moderator` и `operator`;
 - `admin` и `superAdmin` могут удалять `moderator` и `operator`;
 - только `superAdmin` может создавать `admin`;
+- UI формы staff-пользователя должен опираться на `organizationIds` как основной multi-tenant контракт;
 - `moderator` и `operator` не могут управлять staff-пользователями.
 
 #### Права по наполнению организации
@@ -456,7 +472,7 @@ Admin frontend готов к разработке боевых фич.
   - `email`
   - `password`
   - `role`
-  - `organizationIds` / выбор организаций (когда backend будет fully multi-tenant aware)
+  - `organizationIds` / выбор организаций
 - role-based видимость полей и ролей;
 - интеграцию с `POST /users/staff`.
 
@@ -475,14 +491,17 @@ Admin frontend готов к разработке боевых фич.
 - реализована форма создания staff-пользователя;
 - форма собрана на `MUI + Formik + Yup + styles.ts`;
 - подключена интеграция с `POST /users/staff`;
+- backend уже fully multi-tenant aware для staff-контракта:
+  - `organizationIds` используется как основной список организаций
+  - `primaryTenantId` приходит в auth-ответах как служебный primary tenant
 - добавлены `success/error/loading` состояния через `TanStack Query`;
 - реализована role-based логика формы:
   - `admin` может выбирать только `moderator` и `operator`;
   - `superAdmin` может выбирать `admin`, `moderator`, `operator`;
-  - поле `tenantId` показывается только для `superAdmin`;
+  - следующим шагом форма должна окончательно перейти на `organizationIds` вместо старого одиночного `tenantId`;
 - добавлены тесты на:
   - role-based доступные роли;
-  - отображение `tenantId` для `superAdmin`;
+  - отображение организационного контекста для `superAdmin`;
   - успешную отправку формы.
 
 #### Что осталось по этапу
@@ -490,7 +509,7 @@ Admin frontend готов к разработке боевых фич.
 - скрыть staff-раздел для неподходящих ролей;
 - запретить переход на staff route при недостаточных правах;
 - добавить список сотрудников под формой и обновление списка после создания.
-- подготовить UI к множественной привязке сотрудника к организациям после расширения backend-контракта.
+- довести UI выбора `organizationIds` до полноценного multi-select сценария.
 
 #### Результат этапа
 
@@ -587,9 +606,9 @@ Admin frontend готов к разработке боевых фич.
 3. staff create screen;
 4. role-based UI visibility в остальных прикладных разделах;
 5. переключение текущей организации и multi-tenant контекст staff-пользователя;
-6. screens управления организациями для `superAdmin` и `admin`;
-7. categories/products screens для `admin` и `moderator`;
-8. orders management screen для `operator`, `admin`, `superAdmin`.
+6. screens управления организациями для `superAdmin` и `admin` поверх уже готовых backend-endpoint;
+7. categories/products screens для `admin` и `moderator` поверх уже готовых backend-endpoint;
+8. orders management screen для `operator`, `admin`, `superAdmin`, когда будет реализован backend-модуль заказов и HTTP-контракты.
 
 ## 11. Итог
 
@@ -601,6 +620,10 @@ Admin frontend нужно строить уже не как абстрактну
 - `GET /auth/me`
 - `DELETE /auth/me`
 - `POST /users/staff`
+- `GET /tenants`
+- `GET /tenants/accessible`
+- CRUD категорий
+- CRUD продуктов
 
 И вокруг router-архитектуры, где staff-роли получают раздельные ветки интерфейса:
 

@@ -11,7 +11,7 @@ import { ProductsService } from '../../src/products/products.service';
 
 interface InMemoryUser {
   id: number;
-  tenantId: number | null;
+  primaryTenantId: number | null;
   organizationIds: number[];
   email: string | null;
   phone: string;
@@ -38,11 +38,12 @@ class InMemoryUsersService {
 
   create(input: CreateUserInput) {
     const organizationIds =
-      input.organizationIds ?? (input.tenantId ? [input.tenantId] : []);
+      input.organizationIds ??
+      (input.primaryTenantId ? [input.primaryTenantId] : []);
 
     const user: InMemoryUser = {
       id: this.currentId++,
-      tenantId: input.tenantId ?? null,
+      primaryTenantId: input.primaryTenantId ?? null,
       organizationIds,
       email: input.email ?? null,
       phone: input.phone,
@@ -92,7 +93,7 @@ describe('E2E проверки продуктов', () => {
     create: jest.fn().mockResolvedValue({
       id: 1,
       name: 'Маргарита',
-      discountAll: 10,
+      currency: 'RUB',
     }),
     update: jest.fn().mockResolvedValue({ id: 1, name: 'Обновлено' }),
     remove: jest.fn().mockResolvedValue({ id: 1, isActive: false }),
@@ -122,7 +123,7 @@ describe('E2E проверки продуктов', () => {
   it('разрешает moderator создавать продукт', async () => {
     const passwordHash = await bcrypt.hash('password123', 10);
     usersService.seed({
-      tenantId: 10,
+      primaryTenantId: 10,
       organizationIds: [10],
       email: null,
       phone: '+79990000200',
@@ -151,8 +152,6 @@ describe('E2E проверки продуктов', () => {
         categoryId: 5,
         name: 'Маргарита',
         price: 500,
-        discountAll: 10,
-        discountStaff: 15,
       })
       .expect(201);
   });
@@ -160,7 +159,7 @@ describe('E2E проверки продуктов', () => {
   it('запрещает operator создавать продукт', async () => {
     const passwordHash = await bcrypt.hash('password123', 10);
     usersService.seed({
-      tenantId: 10,
+      primaryTenantId: 10,
       organizationIds: [10],
       email: null,
       phone: '+79990000201',
@@ -189,7 +188,6 @@ describe('E2E проверки продуктов', () => {
         categoryId: 5,
         name: 'Маргарита',
         price: 500,
-        discountAll: 10,
       })
       .expect(403);
   });

@@ -11,7 +11,7 @@ import { CategoriesService } from '../../src/categories/categories.service';
 
 interface InMemoryUser {
   id: number;
-  tenantId: number | null;
+  primaryTenantId: number | null;
   organizationIds: number[];
   email: string | null;
   phone: string;
@@ -38,11 +38,12 @@ class InMemoryUsersService {
 
   create(input: CreateUserInput) {
     const organizationIds =
-      input.organizationIds ?? (input.tenantId ? [input.tenantId] : []);
+      input.organizationIds ??
+      (input.primaryTenantId ? [input.primaryTenantId] : []);
 
     const user: InMemoryUser = {
       id: this.currentId++,
-      tenantId: input.tenantId ?? null,
+      primaryTenantId: input.primaryTenantId ?? null,
       organizationIds,
       email: input.email ?? null,
       phone: input.phone,
@@ -118,7 +119,7 @@ describe('E2E проверки категорий', () => {
   it('разрешает admin создавать категорию', async () => {
     const passwordHash = await bcrypt.hash('password123', 10);
     usersService.seed({
-      tenantId: 10,
+      primaryTenantId: 10,
       organizationIds: [10],
       email: null,
       phone: '+79990000100',
@@ -152,7 +153,7 @@ describe('E2E проверки категорий', () => {
   it('запрещает operator создавать категорию', async () => {
     const passwordHash = await bcrypt.hash('password123', 10);
     usersService.seed({
-      tenantId: 10,
+      primaryTenantId: 10,
       organizationIds: [10],
       email: null,
       phone: '+79990000101',

@@ -48,7 +48,7 @@ describe('Сервис управления пользователями адм�
       {
         userId: 1,
         role: UserRole.ADMIN,
-        tenantId: 10,
+        primaryTenantId: 10,
         organizationIds: [10],
       },
       {
@@ -69,7 +69,7 @@ describe('Сервис управления пользователями адм�
         {
           userId: 1,
           role: UserRole.ADMIN,
-          tenantId: 10,
+          primaryTenantId: 10,
           organizationIds: [10],
         },
         {
@@ -94,7 +94,7 @@ describe('Сервис управления пользователями адм�
       {
         userId: 100,
         role: UserRole.SUPER_ADMIN,
-        tenantId: null,
+          primaryTenantId: null,
         organizationIds: [10, 77, 88],
       },
       {
@@ -110,7 +110,7 @@ describe('Сервис управления пользователями адм�
     expect(result.role).toBe(UserRole.ADMIN);
     expect(createUserMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        tenantId: 77,
+        primaryTenantId: 77,
         organizationIds: [77, 88],
       }),
     );
@@ -122,7 +122,7 @@ describe('Сервис управления пользователями адм�
         {
           userId: 1,
           role: UserRole.ADMIN,
-          tenantId: 10,
+          primaryTenantId: 10,
           organizationIds: [10],
         },
         {
@@ -143,7 +143,7 @@ describe('Сервис управления пользователями адм�
         {
           userId: 1,
           role: UserRole.ADMIN,
-          tenantId: 10,
+          primaryTenantId: 10,
           organizationIds: [10],
         },
         {
@@ -167,7 +167,7 @@ describe('Сервис управления пользователями адм�
         {
           userId: 1,
           role: UserRole.ADMIN,
-          tenantId: 10,
+          primaryTenantId: 10,
           organizationIds: [10],
         },
         {
@@ -193,7 +193,7 @@ describe('Сервис управления пользователями адм�
       {
         userId: 1,
         role: UserRole.ADMIN,
-        tenantId: 10,
+          primaryTenantId: 10,
         organizationIds: [10, 20],
       },
       {
@@ -206,7 +206,7 @@ describe('Сервис управления пользователями адм�
 
     expect(createUserMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        tenantId: 10,
+        primaryTenantId: 10,
         organizationIds: [10, 20],
       }),
     );

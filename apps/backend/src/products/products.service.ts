@@ -53,17 +53,6 @@ export class ProductsService {
         description: dto.description,
         price: dto.price,
         currency: dto.currency ?? 'RUB',
-        ...(dto.discountAll !== undefined ? { discountAll: dto.discountAll } : {}),
-        ...(dto.discountStaff !== undefined
-          ? { discountStaff: dto.discountStaff }
-          : {}),
-        ...(dto.discountDay !== undefined ? { discountDay: dto.discountDay } : {}),
-        ...(dto.discountWeek !== undefined
-          ? { discountWeek: dto.discountWeek }
-          : {}),
-        ...(dto.discountMonth !== undefined
-          ? { discountMonth: dto.discountMonth }
-          : {}),
       },
     });
   }
@@ -119,17 +108,6 @@ export class ProductsService {
         price: dto.price,
         currency: dto.currency,
         isActive: dto.isActive,
-        ...(dto.discountAll !== undefined ? { discountAll: dto.discountAll } : {}),
-        ...(dto.discountStaff !== undefined
-          ? { discountStaff: dto.discountStaff }
-          : {}),
-        ...(dto.discountDay !== undefined ? { discountDay: dto.discountDay } : {}),
-        ...(dto.discountWeek !== undefined
-          ? { discountWeek: dto.discountWeek }
-          : {}),
-        ...(dto.discountMonth !== undefined
-          ? { discountMonth: dto.discountMonth }
-          : {}),
       },
     });
   }

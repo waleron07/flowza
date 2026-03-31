@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -63,6 +64,12 @@ export class TenantsService {
         name: dto.name,
         slug: dto.slug,
         description: dto.description,
+        phone: dto.phone,
+        address: dto.address,
+        timezone: dto.timezone ?? 'UTC',
+        workingHours: dto.workingHours as Prisma.InputJsonValue | undefined,
+        deliveryFee: dto.deliveryFee ?? 0,
+        minOrderAmount: dto.minOrderAmount ?? 0,
         ...(dto.subscription
           ? { subscription: new Date(dto.subscription) }
           : {}),
@@ -101,6 +108,12 @@ export class TenantsService {
         name: dto.name,
         slug: dto.slug,
         description: dto.description,
+        phone: dto.phone,
+        address: dto.address,
+        timezone: dto.timezone,
+        workingHours: dto.workingHours as Prisma.InputJsonValue | undefined,
+        deliveryFee: dto.deliveryFee,
+        minOrderAmount: dto.minOrderAmount,
         isActive: dto.isActive,
         ...(dto.subscription !== undefined
           ? { subscription: new Date(dto.subscription) }

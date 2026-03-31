@@ -13,11 +13,11 @@ describe('Контроллер продуктов', () => {
       [{ role: UserRole; organizationIds: number[] }, number]
     >;
     create: jest.Mock<
-      Promise<{ id: number; name: string; discountAll?: number }>,
+      Promise<{ id: number; name: string; currency?: string }>,
       [{ role: UserRole; organizationIds: number[] }, CreateProductDto]
     >;
     update: jest.Mock<
-      Promise<{ id: number; name: string; discountWeek?: number }>,
+      Promise<{ id: number; name: string; currency?: string }>,
       [{ role: UserRole; organizationIds: number[] }, number, UpdateProductDto]
     >;
     remove: jest.Mock<
@@ -56,7 +56,7 @@ describe('Контроллер продуктов', () => {
           user: {
             userId: 1,
             role: UserRole.ADMIN,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },
@@ -69,7 +69,7 @@ describe('Контроллер продуктов', () => {
     service.create.mockResolvedValue({
       id: 1,
       name: 'Маргарита',
-      discountAll: 10,
+      currency: 'RUB',
     });
 
     await expect(
@@ -78,7 +78,7 @@ describe('Контроллер продуктов', () => {
           user: {
             userId: 1,
             role: UserRole.ADMIN,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },
@@ -87,13 +87,12 @@ describe('Контроллер продуктов', () => {
           categoryId: 5,
           name: 'Маргарита',
           price: 500,
-          discountAll: 10,
         },
       ),
     ).resolves.toEqual({
       id: 1,
       name: 'Маргарита',
-      discountAll: 10,
+      currency: 'RUB',
     });
   });
 
@@ -101,7 +100,7 @@ describe('Контроллер продуктов', () => {
     service.update.mockResolvedValue({
       id: 1,
       name: 'Обновлено',
-      discountWeek: 20,
+      currency: 'USD',
     });
 
     await expect(
@@ -110,17 +109,17 @@ describe('Контроллер продуктов', () => {
           user: {
             userId: 1,
             role: UserRole.MODERATOR,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },
         1,
-        { name: 'Обновлено', discountWeek: 20 },
+        { name: 'Обновлено', currency: 'USD' },
       ),
     ).resolves.toEqual({
       id: 1,
       name: 'Обновлено',
-      discountWeek: 20,
+      currency: 'USD',
     });
   });
 
@@ -133,7 +132,7 @@ describe('Контроллер продуктов', () => {
           user: {
             userId: 1,
             role: UserRole.MODERATOR,
-            tenantId: 10,
+            primaryTenantId: 10,
             organizationIds: [10],
           },
         },

@@ -21,13 +21,13 @@ export class AuthService {
 
   private createPayload(user: {
     id: number;
-    tenantId: number | null;
+    primaryTenantId: number | null;
     organizationIds?: number[];
     role: string;
   }): JwtPayload {
     return {
       userId: user.id,
-      tenantId: user.tenantId,
+      primaryTenantId: user.primaryTenantId,
       organizationIds: user.organizationIds ?? [],
       role: user.role as UserRole,
     };
@@ -65,7 +65,7 @@ export class AuthService {
         phone: user.phone,
         firstName: user.firstName,
         role: user.role,
-        tenantId: user.tenantId,
+        primaryTenantId: user.primaryTenantId,
         organizationIds: user.organizationIds ?? [],
       },
     };
@@ -95,7 +95,7 @@ export class AuthService {
         phone: user.phone,
         firstName: user.firstName,
         role: user.role,
-        tenantId: user.tenantId,
+        primaryTenantId: user.primaryTenantId,
         organizationIds: user.organizationIds ?? [],
       },
     };
@@ -117,7 +117,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      tenantId: user.tenantId,
+      primaryTenantId: user.primaryTenantId,
       organizationIds: user.organizationIds ?? [],
       isActive: user.isActive,
     };
