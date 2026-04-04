@@ -13,12 +13,11 @@ interface InMemoryUser {
   id: number;
   primaryTenantId: number | null;
   organizationIds: number[];
-  email: string | null;
+  email: string;
   phone: string;
   passwordHash: string;
   role: UserRole;
-  firstName: string;
-  lastName: string | null;
+  login: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -45,12 +44,11 @@ class InMemoryUsersService {
       id: this.currentId++,
       primaryTenantId: input.primaryTenantId ?? null,
       organizationIds,
-      email: input.email ?? null,
+      email: input.email,
       phone: input.phone,
       passwordHash: input.passwordHash,
       role: input.role,
-      firstName: input.firstName,
-      lastName: input.lastName ?? null,
+      login: input.login,
       isActive: input.isActive ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -121,19 +119,18 @@ describe('E2E проверки категорий', () => {
     usersService.seed({
       primaryTenantId: 10,
       organizationIds: [10],
-      email: null,
+      email: 'admin-categories@example.com',
       phone: '+79990000100',
       passwordHash,
       role: UserRole.ADMIN,
-      firstName: 'Админ',
-      lastName: null,
+      login: 'admin_categories',
       isActive: true,
     });
 
     const loginResponse = await request(app.getHttpServer())
       .post('/auth/login')
       .send({
-        phone: '+79990000100',
+        identifier: '+79990000100',
         password: 'password123',
       })
       .expect(201);
@@ -155,19 +152,18 @@ describe('E2E проверки категорий', () => {
     usersService.seed({
       primaryTenantId: 10,
       organizationIds: [10],
-      email: null,
+      email: 'operator-categories@example.com',
       phone: '+79990000101',
       passwordHash,
       role: UserRole.OPERATOR,
-      firstName: 'Оператор',
-      lastName: null,
+      login: 'operator_categories',
       isActive: true,
     });
 
     const loginResponse = await request(app.getHttpServer())
       .post('/auth/login')
       .send({
-        phone: '+79990000101',
+        identifier: '+79990000101',
         password: 'password123',
       })
       .expect(201);

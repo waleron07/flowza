@@ -5,9 +5,8 @@ import type { CreateStaffUserDto } from '../../../shared/types/users'
 type StaffUserResponseDto = {
   id: number
   phone: string
-  firstName: string
-  lastName?: string | null
-  email?: string | null
+  login: string
+  email: string
   role: string
   tenantId: number | null
   isActive: boolean

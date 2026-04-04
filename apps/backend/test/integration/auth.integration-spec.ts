@@ -13,14 +13,31 @@ describe('Интеграция auth', () => {
 
   const findByIdMock = jest.fn();
   const findByPhoneMock = jest.fn();
+  const findByEmailMock = jest.fn();
+  const findByLoginMock = jest.fn();
   const createMock = jest.fn();
   const deactivateByIdMock = jest.fn();
+  const createEmailVerificationCodeMock = jest.fn();
+  const findLatestEmailVerificationCodeMock = jest.fn();
+  const incrementEmailVerificationAttemptsMock = jest.fn();
+  const markEmailVerificationCodeUsedMock = jest.fn();
+  const invalidateActiveEmailVerificationCodesMock = jest.fn();
+  const markEmailVerifiedMock = jest.fn();
 
   const usersServiceMock = {
     findById: findByIdMock,
     findByPhone: findByPhoneMock,
+    findByEmail: findByEmailMock,
+    findByLogin: findByLoginMock,
     create: createMock,
     deactivateById: deactivateByIdMock,
+    createEmailVerificationCode: createEmailVerificationCodeMock,
+    findLatestEmailVerificationCode: findLatestEmailVerificationCodeMock,
+    incrementEmailVerificationAttempts: incrementEmailVerificationAttemptsMock,
+    markEmailVerificationCodeUsed: markEmailVerificationCodeUsedMock,
+    invalidateActiveEmailVerificationCodes:
+      invalidateActiveEmailVerificationCodesMock,
+    markEmailVerified: markEmailVerifiedMock,
   } as unknown as UsersService;
 
   beforeEach(async () => {
@@ -62,8 +79,10 @@ describe('Интеграция auth', () => {
         id: 201,
         tenantId: null,
         phone: '+79990000201',
-        firstName: 'Регистрация',
-        lastName: null,
+        login: 'integration_register',
+        email: 'integration-register@example.com',
+        emailVerifiedAt: null,
+        organizationIds: [],
         role: UserRole.USER,
         isActive: true,
       });
@@ -72,19 +91,22 @@ describe('Интеграция auth', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000201',
-          firstName: 'Регистрация',
+          login: 'integration_register',
+          email: 'integration-register@example.com',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
       const body = response.body as {
-        accessToken: string;
-        user: { phone: string; role: UserRole };
+        success: boolean;
+        verificationRequired: boolean;
       };
-      expect(body.accessToken).toBeDefined();
-      expect(body.user.phone).toBe('+79990000201');
-      expect(body.user.role).toBe(UserRole.USER);
+      expect(body.success).toBe(true);
+      expect(body.verificationRequired).toBe(true);
     });
 
     it('возвращает 400 без согласия с политикой конфиденциальности', async () => {
@@ -92,9 +114,13 @@ describe('Интеграция auth', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000202',
-          firstName: 'Без согласия',
+          login: 'no_consent',
+          email: 'no-consent@example.com',
           password: 'password123',
           consentToPrivacyPolicy: false,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(400);
     });
@@ -107,8 +133,10 @@ describe('Интеграция auth', () => {
         id: 301,
         tenantId: null,
         phone: '+79990000301',
-        firstName: 'Логин',
-        lastName: null,
+        login: 'integration_login',
+        email: 'integration-login@example.com',
+        emailVerifiedAt: new Date(),
+        organizationIds: [],
         role: UserRole.USER,
         isActive: true,
         passwordHash,
@@ -117,7 +145,7 @@ describe('Интеграция auth', () => {
       const response = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000301',
+          identifier: '+79990000301',
           password: 'password123',
         })
         .expect(201);
@@ -136,8 +164,10 @@ describe('Интеграция auth', () => {
         id: 302,
         tenantId: null,
         phone: '+79990000302',
-        firstName: 'Неверный пароль',
-        lastName: null,
+        login: 'wrong_password_login',
+        email: 'wrong-password@example.com',
+        emailVerifiedAt: new Date(),
+        organizationIds: [],
         role: UserRole.USER,
         isActive: true,
         passwordHash,
@@ -146,7 +176,7 @@ describe('Интеграция auth', () => {
       await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000302',
+          identifier: '+79990000302',
           password: 'wrong-password',
         })
         .expect(401);
@@ -158,8 +188,10 @@ describe('Интеграция auth', () => {
         id: 303,
         tenantId: null,
         phone: '+79990000303',
-        firstName: 'Неактивный логин',
-        lastName: null,
+        login: 'inactive_login',
+        email: 'inactive-login@example.com',
+        emailVerifiedAt: new Date(),
+        organizationIds: [],
         role: UserRole.USER,
         isActive: false,
         passwordHash,
@@ -168,7 +200,7 @@ describe('Интеграция auth', () => {
       await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000303',
+          identifier: '+79990000303',
           password: 'password123',
         })
         .expect(401);
@@ -181,8 +213,10 @@ describe('Интеграция auth', () => {
         id: 100,
         tenantId: null,
         phone: '+79990000100',
-        firstName: 'Интеграция',
-        lastName: 'Тест',
+        login: 'integration_me',
+        email: 'integration-me@example.com',
+        emailVerifiedAt: new Date(),
+        organizationIds: [],
         role: UserRole.USER,
         isActive: true,
       });
@@ -191,9 +225,9 @@ describe('Интеграция auth', () => {
         .get('/auth/me')
         .expect(200);
 
-      const body = response.body as { phone: string; firstName: string };
+      const body = response.body as { phone: string; login: string };
       expect(body.phone).toBe('+79990000100');
-      expect(body.firstName).toBe('Интеграция');
+      expect(body.login).toBe('integration_me');
     });
 
     it('возвращает 401 для неактивного пользователя', async () => {
@@ -201,8 +235,10 @@ describe('Интеграция auth', () => {
         id: 100,
         tenantId: null,
         phone: '+79990000101',
-        firstName: 'Неактивный',
-        lastName: null,
+        login: 'inactive_me',
+        email: 'inactive-me@example.com',
+        emailVerifiedAt: new Date(),
+        organizationIds: [],
         role: UserRole.USER,
         isActive: false,
       });
@@ -217,8 +253,10 @@ describe('Интеграция auth', () => {
         id: 100,
         tenantId: null,
         phone: '+79990000102',
-        firstName: 'Удаление',
-        lastName: null,
+        login: 'delete_me',
+        email: 'delete-me@example.com',
+        emailVerifiedAt: new Date(),
+        organizationIds: [],
         role: UserRole.USER,
         isActive: true,
       });

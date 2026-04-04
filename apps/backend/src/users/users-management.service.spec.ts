@@ -10,10 +10,14 @@ import { TenantAccessService } from '../tenants/tenant-access.service';
 
 describe('Сервис управления пользователями админки', () => {
   const findByPhoneMock = jest.fn();
+  const findByEmailMock = jest.fn();
+  const findByLoginMock = jest.fn();
   const createUserMock = jest.fn();
 
   const usersService = {
     findByPhone: findByPhoneMock,
+    findByEmail: findByEmailMock,
+    findByLogin: findByLoginMock,
     create: createUserMock,
   } as unknown as UsersService;
 
@@ -28,6 +32,8 @@ describe('Сервис управления пользователями адм�
 
   beforeEach(() => {
     jest.clearAllMocks();
+    findByEmailMock.mockResolvedValue(null);
+    findByLoginMock.mockResolvedValue(null);
     tenantAccessService.normalizeOrganizationIds = jest.fn(
       (organizationIds?: number[]) =>
         [...new Set(organizationIds ?? [])].sort((left, right) => left - right),
@@ -53,7 +59,8 @@ describe('Сервис управления пользователями адм�
       },
       {
         phone: '+79990000010',
-        firstName: 'Оператор',
+        email: 'operator-staff@example.com',
+        login: 'operator_login',
         password: 'password123',
         role: UserRole.OPERATOR,
       },
@@ -74,7 +81,8 @@ describe('Сервис управления пользователями адм�
         },
         {
           phone: '+79990000011',
-          firstName: 'Админ',
+          email: 'admin-staff@example.com',
+          login: 'admin_login',
           password: 'password123',
           role: UserRole.ADMIN,
         },
@@ -99,7 +107,8 @@ describe('Сервис управления пользователями адм�
       },
       {
         phone: '+79990000012',
-        firstName: 'Новый админ',
+        email: 'new-admin@example.com',
+        login: 'new_admin_login',
         password: 'password123',
         role: UserRole.ADMIN,
         organizationIds: [77, 88],
@@ -127,7 +136,8 @@ describe('Сервис управления пользователями адм�
         },
         {
           phone: '+79990000013',
-          firstName: 'Клиент',
+          email: 'user-staff@example.com',
+          login: 'client_login',
           password: 'password123',
           role: UserRole.USER,
         },
@@ -148,7 +158,8 @@ describe('Сервис управления пользователями адм�
         },
         {
           phone: '+79990000014',
-          firstName: 'Дубликат',
+          email: 'duplicate-staff@example.com',
+          login: 'duplicate_login',
           password: 'password123',
           role: UserRole.MODERATOR,
         },
@@ -172,7 +183,8 @@ describe('Сервис управления пользователями адм�
         },
         {
           phone: '+79990000015',
-          firstName: 'Чужая организация',
+          email: 'forbidden-staff@example.com',
+          login: 'forbidden_login',
           password: 'password123',
           role: UserRole.MODERATOR,
           organizationIds: [11],
@@ -198,7 +210,8 @@ describe('Сервис управления пользователями адм�
       },
       {
         phone: '+79990000016',
-        firstName: 'Модератор',
+        email: 'moderator-staff@example.com',
+        login: 'moderator_login',
         password: 'password123',
         role: UserRole.MODERATOR,
       },

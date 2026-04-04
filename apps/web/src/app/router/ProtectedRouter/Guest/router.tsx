@@ -5,6 +5,7 @@ import { CheckoutPage } from '../../../../pages/checkout/CheckoutPage'
 import { LoginPage } from '../../../../pages/auth/login/LoginPage'
 import { RegisterPage } from '../../../../pages/auth/register/RegisterPage'
 import { MenuPage } from '../../../../pages/menu/MenuPage'
+import { PersonalDataConsentPage } from '../../../../pages/legal/PersonalDataConsentPage'
 
 export function GuestRouter() {
   return (
@@ -12,6 +13,7 @@ export function GuestRouter() {
       <Route element={<WebLayout />} path="/">
         <Route element={<Navigate replace to="/menu" />} index />
         <Route element={<MenuPage />} path="menu" />
+        <Route element={<PersonalDataConsentPage />} path="legal/personal-data-consent" />
         <Route element={<CartPage />} path="cart" />
         <Route element={<CheckoutPage requireAuth />} path="checkout" />
         <Route element={<LoginPage />} path="login" />

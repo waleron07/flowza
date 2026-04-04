@@ -17,8 +17,7 @@ import { sx } from './styles'
 
 type StaffFormValues = {
   phone: string
-  firstName: string
-  lastName: string
+  login: string
   email: string
   password: string
   role: UserRole
@@ -27,8 +26,7 @@ type StaffFormValues = {
 
 const initialValues: StaffFormValues = {
   phone: '',
-  firstName: '',
-  lastName: '',
+  login: '',
   email: '',
   password: '',
   role: userRoles.operator,
@@ -72,9 +70,8 @@ export function StaffPage() {
     phone: Yup.string()
       .required('Введите номер телефона')
       .matches(/^\+7\d{10}$/, 'Введите номер телефона РФ в формате +79991234567'),
-    firstName: Yup.string().required('Введите имя'),
-    lastName: Yup.string(),
-    email: Yup.string().email('Введите корректный email'),
+    login: Yup.string().required('Введите логин'),
+    email: Yup.string().email('Введите корректный email').required('Введите email'),
     password: Yup.string()
       .required('Введите пароль')
       .min(8, 'Пароль должен содержать минимум 8 символов'),
@@ -119,11 +116,10 @@ export function StaffPage() {
 
               const payload: CreateStaffUserDto = {
                 phone: values.phone,
-                firstName: values.firstName,
+                login: values.login,
+                email: values.email,
                 password: values.password,
                 role: values.role,
-                ...(values.lastName ? { lastName: values.lastName } : {}),
-                ...(values.email ? { email: values.email } : {}),
                 ...(isSuperAdmin && values.tenantId
                   ? { tenantId: Number(values.tenantId) }
                   : {}),
@@ -139,7 +135,7 @@ export function StaffPage() {
               })
               helpers.setStatus({
                 type: 'success',
-                message: `Сотрудник ${createdUser.firstName} успешно создан с ролью ${createdUser.role}.`,
+                message: `Сотрудник ${createdUser.login} успешно создан с ролью ${createdUser.role}.`,
               })
             } catch (error) {
               helpers.setStatus({
@@ -177,23 +173,13 @@ export function StaffPage() {
                   />
 
                   <TextField
-                    error={Boolean(touched.firstName && errors.firstName)}
-                    helperText={touched.firstName && errors.firstName ? errors.firstName : ' '}
-                    label="Имя"
-                    name="firstName"
+                    error={Boolean(touched.login && errors.login)}
+                    helperText={touched.login && errors.login ? errors.login : ' '}
+                    label="Логин"
+                    name="login"
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    value={values.firstName}
-                  />
-
-                  <TextField
-                    error={Boolean(touched.lastName && errors.lastName)}
-                    helperText={touched.lastName && errors.lastName ? errors.lastName : ' '}
-                    label="Фамилия"
-                    name="lastName"
-                    onBlur={handleBlur}
-                    onChange={handleChange}
-                    value={values.lastName}
+                    value={values.login}
                   />
 
                   <TextField

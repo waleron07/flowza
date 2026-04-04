@@ -3,11 +3,11 @@ import { UserRole } from '../../common/enums/user-role.enum';
 export interface CreateUserInput {
   primaryTenantId?: number;
   organizationIds?: number[];
-  email?: string;
+  email: string;
+  emailVerifiedAt?: Date | null;
   phone: string;
   passwordHash: string;
   role: UserRole;
-  firstName: string;
-  lastName?: string;
+  login: string;
   isActive?: boolean;
 }

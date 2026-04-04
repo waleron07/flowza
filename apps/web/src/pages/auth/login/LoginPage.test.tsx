@@ -42,6 +42,7 @@ describe('Страница входа', () => {
       user: null,
       login: vi.fn(),
       register: vi.fn(),
+      applyAuthSession: vi.fn(),
       logout: vi.fn(),
       deleteAccount: vi.fn(),
     })
@@ -54,7 +55,7 @@ describe('Страница входа', () => {
 
     await user.click(screen.getByRole('button', { name: /войти/i }))
 
-    expect(await screen.findByText(/введите номер телефона/i)).toBeInTheDocument()
+    expect(await screen.findByText(/введите идентификатор/i)).toBeInTheDocument()
     expect(await screen.findByText(/введите пароль/i)).toBeInTheDocument()
   })
 
@@ -67,18 +68,19 @@ describe('Страница входа', () => {
       user: null,
       login,
       register: vi.fn(),
+      applyAuthSession: vi.fn(),
       logout: vi.fn(),
       deleteAccount: vi.fn(),
     })
 
     renderLoginPage('/login?redirectTo=/checkout')
 
-    await user.type(screen.getByLabelText(/телефон/i), '+79991234567')
+    await user.type(screen.getByLabelText(/идентификатор/i), '+79991234567')
     await user.type(screen.getByLabelText(/пароль/i), 'strongpass')
     await user.click(screen.getByRole('button', { name: /войти/i }))
 
     expect(login).toHaveBeenCalledWith({
-      phone: '+79991234567',
+      identifier: '+79991234567',
       password: 'strongpass',
     })
     expect(mockedNavigate).toHaveBeenCalledWith('/checkout', { replace: true })
@@ -93,13 +95,14 @@ describe('Страница входа', () => {
       user: null,
       login,
       register: vi.fn(),
+      applyAuthSession: vi.fn(),
       logout: vi.fn(),
       deleteAccount: vi.fn(),
     })
 
     renderLoginPage()
 
-    await user.type(screen.getByLabelText(/телефон/i), '+79991234567')
+    await user.type(screen.getByLabelText(/идентификатор/i), '+79991234567')
     await user.type(screen.getByLabelText(/пароль/i), 'wrongpass')
     await user.click(screen.getByRole('button', { name: /войти/i }))
 

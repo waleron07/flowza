@@ -7,6 +7,10 @@ import { UserRecord } from './types/user-record.type';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizeLogin(user: { login?: string; firstName?: string }): string {
+    return user.login ?? user.firstName ?? '';
+  }
+
   private async getOrganizationIdsForUser(
     userId: number,
     fallbackPrimaryTenantId: number | null,
@@ -28,11 +32,11 @@ export class UsersService {
     id: number;
     primaryTenantId: number | null;
     email: string | null;
+    emailVerifiedAt: Date | null;
     phone: string;
     passwordHash: string;
     role: string;
-    firstName: string;
-    lastName: string | null;
+    login: string;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -42,12 +46,12 @@ export class UsersService {
       id: user.id,
       primaryTenantId: user.primaryTenantId,
       organizationIds: user.organizationIds,
-      email: user.email,
+      email: user.email ?? '',
+      emailVerifiedAt: user.emailVerifiedAt,
       phone: user.phone,
       passwordHash: user.passwordHash,
       role: user.role,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      login: user.login,
       isActive: user.isActive,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -66,9 +70,60 @@ export class UsersService {
       user.id,
       user.primaryTenantId,
     );
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
 
     return this.mapUserRecord({
       ...user,
+      login: normalizedLogin,
+      organizationIds,
+    });
+  }
+
+  async findByEmail(email: string): Promise<UserRecord | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (!user) {
+      return null;
+    }
+
+    const organizationIds = await this.getOrganizationIdsForUser(
+      user.id,
+      user.primaryTenantId,
+    );
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
+
+    return this.mapUserRecord({
+      ...user,
+      login: normalizedLogin,
+      organizationIds,
+    });
+  }
+
+  async findByLogin(login: string): Promise<UserRecord | null> {
+    const prismaAny = this.prisma as any;
+    const user = await prismaAny.user.findUnique({
+      where: { login },
+    });
+    if (!user) {
+      return null;
+    }
+
+    const organizationIds = await this.getOrganizationIdsForUser(
+      user.id,
+      user.primaryTenantId,
+    );
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
+
+    return this.mapUserRecord({
+      ...user,
+      login: normalizedLogin,
       organizationIds,
     });
   }
@@ -85,9 +140,13 @@ export class UsersService {
       user.id,
       user.primaryTenantId,
     );
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
 
     return this.mapUserRecord({
       ...user,
+      login: normalizedLogin,
       organizationIds,
     });
   }
@@ -122,9 +181,13 @@ export class UsersService {
       user.id,
       user.primaryTenantId,
     );
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
 
     return this.mapUserRecord({
       ...user,
+      login: normalizedLogin,
       organizationIds,
     });
   }
@@ -136,21 +199,22 @@ export class UsersService {
     const primaryTenantId = input.primaryTenantId ?? organizationIds[0];
 
     const user = await this.prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
+      const txAny = tx as any;
+      const createdUser = await txAny.user.create({
         data: {
           primaryTenantId,
           email: input.email,
+          emailVerifiedAt: input.emailVerifiedAt,
           phone: input.phone,
           passwordHash: input.passwordHash,
           role: input.role,
-          firstName: input.firstName,
-          lastName: input.lastName,
+          login: input.login,
           isActive: input.isActive ?? true,
         },
       });
 
       if (organizationIds.length > 0) {
-        await tx.userTenantAccess.createMany({
+        await txAny.userTenantAccess.createMany({
           data: organizationIds.map((organizationId) => ({
             userId: createdUser.id,
             tenantId: organizationId,
@@ -162,13 +226,84 @@ export class UsersService {
       return createdUser;
     });
 
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
+
     return this.mapUserRecord({
       ...user,
+      login: normalizedLogin,
       organizationIds: organizationIds.length
         ? organizationIds
         : primaryTenantId
           ? [primaryTenantId]
           : [],
+    });
+  }
+
+  async createEmailVerificationCode(input: {
+    userId: number;
+    codeHash: string;
+    expiresAt: Date;
+  }) {
+    return this.prisma.emailVerificationCode.create({
+      data: {
+        userId: input.userId,
+        codeHash: input.codeHash,
+        expiresAt: input.expiresAt,
+      },
+    });
+  }
+
+  async findLatestEmailVerificationCode(userId: number) {
+    return this.prisma.emailVerificationCode.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async incrementEmailVerificationAttempts(codeId: number) {
+    return this.prisma.emailVerificationCode.update({
+      where: { id: codeId },
+      data: { attempts: { increment: 1 } },
+    });
+  }
+
+  async markEmailVerificationCodeUsed(codeId: number) {
+    return this.prisma.emailVerificationCode.update({
+      where: { id: codeId },
+      data: { usedAt: new Date() },
+    });
+  }
+
+  async invalidateActiveEmailVerificationCodes(userId: number) {
+    return this.prisma.emailVerificationCode.updateMany({
+      where: {
+        userId,
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
+  }
+
+  async markEmailVerified(userId: number): Promise<UserRecord> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: new Date() },
+    });
+
+    const organizationIds = await this.getOrganizationIdsForUser(
+      user.id,
+      user.primaryTenantId,
+    );
+    const normalizedLogin = this.normalizeLogin(
+      user as { login?: string; firstName?: string },
+    );
+
+    return this.mapUserRecord({
+      ...user,
+      login: normalizedLogin,
+      organizationIds,
     });
   }
 }

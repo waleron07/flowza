@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, Matches, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  Matches,
+  MinLength,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty()
@@ -9,7 +15,14 @@ export class RegisterDto {
   phone: string;
 
   @IsNotEmpty()
-  firstName: string;
+  @Matches(/^[a-zA-Z0-9_-]+$/, {
+    message:
+      'Login must contain only Latin letters, digits, underscore and hyphen',
+  })
+  login: string;
+
+  @IsEmail()
+  email: string;
 
   @MinLength(8)
   password: string;
@@ -17,4 +30,14 @@ export class RegisterDto {
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
   consentToPrivacyPolicy: boolean;
+
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  consentToPersonalData: boolean;
+
+  @IsNotEmpty()
+  agreementVersion: string;
+
+  @IsNotEmpty()
+  captchaToken: string;
 }

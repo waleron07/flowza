@@ -49,9 +49,9 @@ export function ProfilePage() {
           <Box sx={sx.infoGrid}>
             <Box sx={sx.infoItem}>
               <Typography variant="body2" sx={sx.infoLabel}>
-                Имя
+                Логин
               </Typography>
-              <Typography variant="h6">{user.firstName}</Typography>
+              <Typography variant="h6">{user.login}</Typography>
             </Box>
 
             <Box sx={sx.infoItem}>

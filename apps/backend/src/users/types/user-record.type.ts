@@ -2,12 +2,12 @@ export interface UserRecord {
   id: number;
   primaryTenantId: number | null;
   organizationIds: number[];
-  email: string | null;
+  email: string;
+  emailVerifiedAt: Date | null;
   phone: string;
   passwordHash: string;
   role: string;
-  firstName: string;
-  lastName: string | null;
+  login: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

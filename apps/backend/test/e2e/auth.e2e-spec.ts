@@ -12,20 +12,32 @@ interface InMemoryUser {
   id: number;
   primaryTenantId: number | null;
   organizationIds: number[];
-  email: string | null;
+  email: string;
+  emailVerifiedAt: Date | null;
   phone: string;
   passwordHash: string;
   role: UserRole;
-  firstName: string;
-  lastName: string | null;
+  login: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
+interface InMemoryEmailVerificationCode {
+  id: number;
+  userId: number;
+  codeHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  attempts: number;
+  createdAt: Date;
+}
+
 class InMemoryUsersService {
   private users: InMemoryUser[] = [];
   private currentId = 1;
+  private emailCodes: InMemoryEmailVerificationCode[] = [];
+  private currentEmailCodeId = 1;
 
   findByPhone(phone: string) {
     return this.users.find((user) => user.phone === phone) ?? null;
@@ -33,6 +45,10 @@ class InMemoryUsersService {
 
   findById(id: number) {
     return this.users.find((user) => user.id === id) ?? null;
+  }
+
+  findByEmail(email: string) {
+    return this.users.find((user) => user.email === email) ?? null;
   }
 
   create(input: CreateUserInput) {
@@ -44,12 +60,12 @@ class InMemoryUsersService {
       id: this.currentId++,
       primaryTenantId: input.primaryTenantId ?? null,
       organizationIds,
-      email: input.email ?? null,
+      email: input.email,
+      emailVerifiedAt: input.emailVerifiedAt ?? null,
       phone: input.phone,
       passwordHash: input.passwordHash,
       role: input.role,
-      firstName: input.firstName,
-      lastName: input.lastName ?? null,
+      login: input.login,
       isActive: input.isActive ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -70,12 +86,88 @@ class InMemoryUsersService {
     return user;
   }
 
-  seed(user: Omit<InMemoryUser, 'id' | 'createdAt' | 'updatedAt'>) {
+  createEmailVerificationCode(input: {
+    userId: number;
+    codeHash: string;
+    expiresAt: Date;
+  }) {
+    const code: InMemoryEmailVerificationCode = {
+      id: this.currentEmailCodeId++,
+      userId: input.userId,
+      codeHash: input.codeHash,
+      expiresAt: input.expiresAt,
+      usedAt: null,
+      attempts: 0,
+      createdAt: new Date(),
+    };
+    this.emailCodes.push(code);
+    return code;
+  }
+
+  findLatestEmailVerificationCode(userId: number) {
+    return (
+      this.emailCodes
+        .filter((code) => code.userId === userId)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ??
+      null
+    );
+  }
+
+  incrementEmailVerificationAttempts(codeId: number) {
+    const code = this.emailCodes.find((item) => item.id === codeId);
+    if (!code) {
+      return null;
+    }
+
+    code.attempts += 1;
+    return code;
+  }
+
+  markEmailVerificationCodeUsed(codeId: number) {
+    const code = this.emailCodes.find((item) => item.id === codeId);
+    if (!code) {
+      return null;
+    }
+
+    code.usedAt = new Date();
+    return code;
+  }
+
+  invalidateActiveEmailVerificationCodes(userId: number) {
+    const now = new Date();
+    this.emailCodes
+      .filter((code) => code.userId === userId && code.usedAt === null)
+      .forEach((code) => {
+        code.usedAt = now;
+      });
+    return { count: this.emailCodes.length };
+  }
+
+  markEmailVerified(userId: number) {
+    const user = this.users.find((item) => item.id === userId);
+    if (!user) {
+      throw new Error('Пользователь не найден');
+    }
+
+    user.emailVerifiedAt = new Date();
+    user.updatedAt = new Date();
+    return user;
+  }
+
+  seed(
+    user: Omit<
+      InMemoryUser,
+      'id' | 'createdAt' | 'updatedAt' | 'emailVerifiedAt'
+    > & {
+      emailVerifiedAt?: Date | null;
+    },
+  ) {
     const createdUser: InMemoryUser = {
       id: this.currentId++,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...user,
+      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
     };
 
     this.users.push(createdUser);
@@ -105,9 +197,13 @@ describe('E2E проверки авторизации', () => {
       .post('/auth/register')
       .send({
         phone: '+79991234567',
-        firstName: 'Иван',
+        email: 'user1@example.com',
+        login: 'ivan_user',
         password: 'password123',
         consentToPrivacyPolicy: true,
+        consentToPersonalData: true,
+        agreementVersion: '2026-04-04',
+        captchaToken: 'mock-captcha-token',
       })
       .expect(201);
 
@@ -124,7 +220,7 @@ describe('E2E проверки авторизации', () => {
     await request(app.getHttpServer())
       .post('/auth/login')
       .send({
-        phone: '+79991234567',
+        identifier: '+79991234567',
         password: 'password123',
       })
       .expect(401);
@@ -140,16 +236,20 @@ describe('E2E проверки авторизации', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000001',
-          firstName: 'Алексей',
+          email: 'user2@example.com',
+          login: 'alex_user',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000001',
+          identifier: '+79990000001',
           password: 'password123',
         })
         .expect(201);
@@ -163,16 +263,20 @@ describe('E2E проверки авторизации', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000002',
-          firstName: 'Мария',
+          email: 'user3@example.com',
+          login: 'maria_user',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
       await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000002',
+          identifier: '+79990000002',
           password: 'wrong-password',
         })
         .expect(401);
@@ -183,9 +287,13 @@ describe('E2E проверки авторизации', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000003',
-          firstName: 'Ольга',
+          email: 'user4@example.com',
+          login: 'olga_user',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
@@ -199,7 +307,7 @@ describe('E2E проверки авторизации', () => {
       await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000003',
+          identifier: '+79990000003',
           password: 'password123',
         })
         .expect(401);
@@ -212,9 +320,13 @@ describe('E2E проверки авторизации', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000004',
-          firstName: 'Елена',
+          email: 'user5@example.com',
+          login: 'elena_user',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
@@ -225,9 +337,9 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${registerBody.accessToken}`)
         .expect(200);
 
-      const meBody = meResponse.body as { phone: string; firstName: string };
+      const meBody = meResponse.body as { phone: string; login: string };
       expect(meBody.phone).toBe('+79990000004');
-      expect(meBody.firstName).toBe('Елена');
+      expect(meBody.login).toBe('elena_user');
     });
 
     it('возвращает 401 без токена', async () => {
@@ -239,9 +351,13 @@ describe('E2E проверки авторизации', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000005',
-          firstName: 'Никита',
+          email: 'user6@example.com',
+          login: 'nikita_user',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
@@ -265,7 +381,8 @@ describe('E2E проверки авторизации', () => {
         .post('/users/staff')
         .send({
           phone: '+79990000012',
-          firstName: 'Без токена',
+          email: 'staff-no-token@example.com',
+          login: 'staff_no_token',
           password: 'password123',
           role: UserRole.OPERATOR,
         })
@@ -277,19 +394,18 @@ describe('E2E проверки авторизации', () => {
       usersService.seed({
         primaryTenantId: 42,
         organizationIds: [42],
-        email: null,
+        email: 'admin-auth-1@example.com',
         phone: '+79990000006',
         passwordHash,
         role: UserRole.ADMIN,
-        firstName: 'Админ',
-        lastName: null,
+        login: 'admin_auth_1',
         isActive: true,
       });
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000006',
+          identifier: '+79990000006',
           password: 'password123',
         })
         .expect(201);
@@ -301,7 +417,8 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${loginBody.accessToken}`)
         .send({
           phone: '+79990000007',
-          firstName: 'Оператор',
+          email: 'operator-created@example.com',
+          login: 'operator_created',
           password: 'password123',
           role: UserRole.OPERATOR,
         })
@@ -320,9 +437,13 @@ describe('E2E проверки авторизации', () => {
         .post('/auth/register')
         .send({
           phone: '+79990000013',
-          firstName: 'Клиент',
+          email: 'user7@example.com',
+          login: 'client_user',
           password: 'password123',
           consentToPrivacyPolicy: true,
+          consentToPersonalData: true,
+          agreementVersion: '2026-04-04',
+          captchaToken: 'mock-captcha-token',
         })
         .expect(201);
 
@@ -333,7 +454,8 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${registerBody.accessToken}`)
         .send({
           phone: '+79990000014',
-          firstName: 'Попытка',
+          email: 'staff-by-user@example.com',
+          login: 'attempt_user',
           password: 'password123',
           role: UserRole.OPERATOR,
         })
@@ -345,19 +467,18 @@ describe('E2E проверки авторизации', () => {
       usersService.seed({
         primaryTenantId: 42,
         organizationIds: [42],
-        email: null,
+        email: 'moderator-auth@example.com',
         phone: '+79990000015',
         passwordHash,
         role: UserRole.MODERATOR,
-        firstName: 'Модератор',
-        lastName: null,
+        login: 'moderator_auth',
         isActive: true,
       });
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000015',
+          identifier: '+79990000015',
           password: 'password123',
         })
         .expect(201);
@@ -369,7 +490,8 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${loginBody.accessToken}`)
         .send({
           phone: '+79990000016',
-          firstName: 'Попытка модератора',
+          email: 'staff-by-moderator@example.com',
+          login: 'moderator_attempt',
           password: 'password123',
           role: UserRole.OPERATOR,
         })
@@ -381,19 +503,18 @@ describe('E2E проверки авторизации', () => {
       usersService.seed({
         primaryTenantId: 42,
         organizationIds: [42],
-        email: null,
+        email: 'admin-auth-2@example.com',
         phone: '+79990000008',
         passwordHash,
         role: UserRole.ADMIN,
-        firstName: 'Админ',
-        lastName: null,
+        login: 'admin_auth_2',
         isActive: true,
       });
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000008',
+          identifier: '+79990000008',
           password: 'password123',
         })
         .expect(201);
@@ -405,7 +526,8 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${loginBody.accessToken}`)
         .send({
           phone: '+79990000009',
-          firstName: 'Новый админ',
+          email: 'admin-created-by-admin@example.com',
+          login: 'new_admin_attempt',
           password: 'password123',
           role: UserRole.ADMIN,
         })
@@ -417,19 +539,18 @@ describe('E2E проверки авторизации', () => {
       usersService.seed({
         primaryTenantId: null,
         organizationIds: [77],
-        email: null,
+        email: 'superadmin-auth@example.com',
         phone: '+79990000010',
         passwordHash,
         role: UserRole.SUPER_ADMIN,
-        firstName: 'Суперадмин',
-        lastName: null,
+        login: 'superadmin_auth',
         isActive: true,
       });
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000010',
+          identifier: '+79990000010',
           password: 'password123',
         })
         .expect(201);
@@ -441,7 +562,8 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${loginBody.accessToken}`)
         .send({
           phone: '+79990000011',
-          firstName: 'Админ организации',
+          email: 'admin-created-by-superadmin@example.com',
+          login: 'admin_by_superadmin',
           password: 'password123',
           role: UserRole.ADMIN,
           primaryTenantId: 77,
@@ -461,19 +583,18 @@ describe('E2E проверки авторизации', () => {
       const admin = usersService.seed({
         primaryTenantId: 42,
         organizationIds: [42],
-        email: null,
+        email: 'admin-auth-3@example.com',
         phone: '+79990000017',
         passwordHash,
         role: UserRole.ADMIN,
-        firstName: 'Деактивированный админ',
-        lastName: null,
+        login: 'deactivated_admin',
         isActive: true,
       });
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          phone: '+79990000017',
+          identifier: '+79990000017',
           password: 'password123',
         })
         .expect(201);
@@ -487,7 +608,8 @@ describe('E2E проверки авторизации', () => {
         .set('Authorization', `Bearer ${loginBody.accessToken}`)
         .send({
           phone: '+79990000018',
-          firstName: 'Новый оператор',
+          email: 'operator-after-deactivation@example.com',
+          login: 'new_operator_after_deactivate',
           password: 'password123',
           role: UserRole.OPERATOR,
         })

@@ -39,6 +39,27 @@
 - убедиться, что локально поднят `PostgreSQL`;
 - проверить корректность `DATABASE_URL` в `apps/backend/.env.development`.
 
+### Как локально поднять PostgreSQL
+
+Рекомендуемый вариант (быстро и одинаково у всей команды) — через Docker.
+
+1. Запустить контейнер:
+   `docker run --name flowza-postgres -e POSTGRES_DB=flowza -e POSTGRES_USER=flowza -e POSTGRES_PASSWORD=flowza_dev_password -p 5432:5432 -d postgres:16`
+2. Проверить, что контейнер поднялся:
+   `docker ps`
+3. Пример `DATABASE_URL` для `apps/backend/.env.development`:
+   `DATABASE_URL="postgresql://flowza:flowza_dev_password@localhost:5432/flowza?schema=public"`
+4. Применить миграции:
+   `pnpm --filter backend exec prisma migrate dev`
+
+Полезные команды для этого контейнера:
+
+- остановить: `docker stop flowza-postgres`
+- запустить снова: `docker start flowza-postgres`
+- удалить (с данными внутри контейнера): `docker rm -f flowza-postgres`
+
+Альтернатива без Docker: установить PostgreSQL как системный сервис, создать БД/пользователя и указать корректный `DATABASE_URL` в `apps/backend/.env.development`.
+
 Основные команды:
 
 - применить миграции к локальной БД:

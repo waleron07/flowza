@@ -98,12 +98,12 @@ model Tenant {
 
 model User {
   id               Int                @id @default(autoincrement())
-  email            String?            @unique
+  email            String             @unique
+  emailVerifiedAt  DateTime?
   phone            String             @unique
   passwordHash     String
   role             UserRole           @default(user)
-  firstName        String
-  lastName         String?
+  login            String             @unique
   isActive         Boolean            @default(true)
   avatarId         Int?
   primaryTenantId  Int?
@@ -115,12 +115,28 @@ model User {
   reviews          Review[]
   auditLogs        AuditLog[]
   orders           Order[]
+  emailVerificationCodes EmailVerificationCode[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@index([avatarId])
   @@index([primaryTenantId])
   @@index([role])
+}
+
+model EmailVerificationCode {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, usedAt])
 }
 
 model UserTenantAccess {

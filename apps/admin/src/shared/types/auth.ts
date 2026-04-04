@@ -3,15 +3,14 @@ import type { UserRole } from './users'
 export type AuthUser = {
   id: number
   phone: string
-  firstName: string
-  lastName?: string | null
+  login: string
   role: UserRole
   tenantId: number | null
   isActive?: boolean
 }
 
 export type LoginRequestDto = {
-  phone: string
+  identifier: string
   password: string
 }
 

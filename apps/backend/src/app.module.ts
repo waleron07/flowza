@@ -1,3 +1,4 @@
+import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -14,7 +15,11 @@ import { ProductsModule } from './products/products.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.NODE_ENV ?? 'development'}`, '.env'],
+      // Пути от `apps/backend`: относительные `.env` ломались при другом cwd. Порядок: сначала `.env.<NODE_ENV>`, потом `.env` — merge даёт приоритет значениям из env по NODE_ENV.
+      envFilePath: [
+        join(__dirname, '..', `.env.${process.env.NODE_ENV ?? 'development'}`),
+        join(__dirname, '..', '.env'),
+      ],
     }),
     DatabaseModule,
     UsersModule,

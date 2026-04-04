@@ -16,7 +16,9 @@ import {
   removeAccessToken,
   setAccessToken,
 } from '../../../shared/lib/token-storage'
+import { normalizeAuthUser } from '../../../shared/lib/normalize-auth-user'
 import type {
+  AuthResponseDto,
   AuthUser,
   LoginRequestDto,
   RegisterRequestDto,
@@ -44,7 +46,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return
         }
 
-        setUser(restoredUser)
+        setUser(normalizeAuthUser(restoredUser))
         setStatus('authenticated')
       })
       .catch(() => {
@@ -67,15 +69,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const result = await loginRequest(payload)
 
     setAccessToken(result.accessToken)
-    setUser(result.user)
+    setUser(normalizeAuthUser(result.user))
     setStatus('authenticated')
   }, [])
 
   const register = useCallback(async (payload: RegisterRequestDto) => {
     const result = await registerRequest(payload)
 
+    if (result.accessToken && result.user) {
+      setAccessToken(result.accessToken)
+      setUser(normalizeAuthUser(result.user))
+      setStatus('authenticated')
+      return result
+    }
+
+    setStatus('guest')
+    return result
+  }, [])
+
+  const applyAuthSession = useCallback((result: AuthResponseDto) => {
     setAccessToken(result.accessToken)
-    setUser(result.user)
+    setUser(normalizeAuthUser(result.user))
     setStatus('authenticated')
   }, [])
 
@@ -98,10 +112,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       user,
       login,
       register,
+      applyAuthSession,
       logout,
       deleteAccount,
     }),
-    [deleteAccount, login, logout, register, status, user],
+    [applyAuthSession, deleteAccount, login, logout, register, status, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

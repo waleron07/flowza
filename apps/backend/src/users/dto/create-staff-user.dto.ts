@@ -1,5 +1,6 @@
 import {
   ArrayNotEmpty,
+  IsEmail,
   IsArray,
   IsEnum,
   IsInt,
@@ -17,13 +18,11 @@ export class CreateStaffUserDto {
   phone: string;
 
   @IsNotEmpty()
-  firstName: string;
+  login: string;
 
-  @IsOptional()
-  lastName?: string;
-
-  @IsOptional()
-  email?: string;
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
 
   @MinLength(8)
   password: string;

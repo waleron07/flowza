@@ -7,19 +7,17 @@ import { getPostAuthRedirect } from '../../../shared/lib/post-auth-redirect'
 import { sx } from './styles'
 
 const loginValidationSchema = Yup.object({
-  phone: Yup.string()
-    .required('Введите номер телефона')
-    .matches(/^\+7\d{10}$/, 'Введите номер телефона РФ в формате +79991234567'),
+  identifier: Yup.string().required('Введите идентификатор'),
   password: Yup.string().required('Введите пароль'),
 })
 
 type LoginFormValues = {
-  phone: string
+  identifier: string
   password: string
 }
 
 const initialValues: LoginFormValues = {
-  phone: '',
+  identifier: '',
   password: '',
 }
 
@@ -37,8 +35,8 @@ export function LoginPage() {
             Вход в Flowza
           </Typography>
           <Typography variant="body1" sx={sx.subtitle}>
-            Войдите по номеру телефона и паролю, чтобы перейти в клиентскую часть
-            приложения.
+            Войдите по email, телефону или логину и паролю, чтобы перейти в
+            клиентскую часть приложения.
           </Typography>
         </Box>
 
@@ -65,17 +63,17 @@ export function LoginPage() {
                 {status?.message ? <Alert severity="error">{status.message}</Alert> : null}
 
                 <TextField
-                  autoComplete="tel"
+                  autoComplete="username"
                   autoFocus
-                  error={Boolean(touched.phone && errors.phone)}
+                  error={Boolean(touched.identifier && errors.identifier)}
                   fullWidth
-                  helperText={touched.phone && errors.phone ? errors.phone : ' '}
-                  label="Телефон"
-                  name="phone"
+                  helperText={touched.identifier && errors.identifier ? errors.identifier : ' '}
+                  label="Идентификатор"
+                  name="identifier"
                   onBlur={handleBlur}
                   onChange={handleChange}
-                  placeholder="+79991234567"
-                  value={values.phone}
+                  placeholder="email, +7999..., или логин"
+                  value={values.identifier}
                 />
 
                 <TextField
@@ -111,6 +109,16 @@ export function LoginPage() {
                   variant="text"
                 >
                   Нет аккаунта? Зарегистрироваться
+                </Button>
+
+                <Button
+                  component={RouterLink}
+                  fullWidth
+                  sx={sx.secondaryAction}
+                  to={redirectTo}
+                  variant="text"
+                >
+                  Войти как гость
                 </Button>
               </Box>
             </Form>

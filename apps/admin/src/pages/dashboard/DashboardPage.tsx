@@ -23,7 +23,7 @@ export function DashboardPage() {
           Dashboard Flowza
         </Typography>
         <Typography variant="body1">
-          Вы вошли как <strong>{user?.firstName}</strong> ({user?.role}).
+          Вы вошли как <strong>{user?.login}</strong> ({user?.role}).
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Базовый layout админки уже подключен. Дальше можно переходить к реальным

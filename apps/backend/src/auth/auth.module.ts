@@ -6,6 +6,10 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './jwt.strategy';
+import { EmailSenderService } from './email-sender.service';
+import { EmailTemplateService } from './email-template.service';
+import { AuthRateLimiterService } from './auth-rate-limiter.service';
+import { TurnstileCaptchaService } from './turnstile-captcha.service';
 
 @Module({
   imports: [
@@ -22,6 +26,13 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    EmailSenderService,
+    EmailTemplateService,
+    AuthRateLimiterService,
+    TurnstileCaptchaService,
+  ],
 })
 export class AuthModule {}

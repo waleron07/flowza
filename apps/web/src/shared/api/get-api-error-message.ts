@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { fixApiMessageMojibake } from '../lib/fix-utf8-mojibake'
 
 export function getApiErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError(error)) {
@@ -12,11 +13,14 @@ export function getApiErrorMessage(error: unknown, fallbackMessage: string) {
       const message = responseMessage.message
 
       if (typeof message === 'string') {
-        return message
+        return fixApiMessageMojibake(message)
       }
 
       if (Array.isArray(message)) {
-        return message.join(', ')
+        const parts = message.map((item) =>
+          typeof item === 'string' ? fixApiMessageMojibake(item) : String(item),
+        )
+        return parts.join(', ')
       }
     }
   }

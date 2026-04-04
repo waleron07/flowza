@@ -99,7 +99,7 @@ export function AdminLayout({
           </Box>
           <Box sx={sx.toolbarRight}>
             <Typography variant="body2" color="text.secondary">
-              {user?.firstName} ({user?.role})
+              {user?.login} ({user?.role})
             </Typography>
             <Button onClick={logout} variant="outlined">
               Выйти

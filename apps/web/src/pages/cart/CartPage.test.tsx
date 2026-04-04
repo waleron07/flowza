@@ -91,6 +91,7 @@ describe('Страница корзины', () => {
       user: null,
       login: vi.fn(),
       register: vi.fn(),
+      applyAuthSession: vi.fn(),
       logout: vi.fn(),
       deleteAccount: vi.fn(),
     })
@@ -122,12 +123,13 @@ describe('Страница корзины', () => {
       user: {
         id: 1,
         phone: '+79991234567',
-        firstName: 'Иван',
+        login: 'ivan_user',
         role: 'user',
         tenantId: null,
       },
       login: vi.fn(),
       register: vi.fn(),
+      applyAuthSession: vi.fn(),
       logout: vi.fn(),
       deleteAccount: vi.fn(),
     })

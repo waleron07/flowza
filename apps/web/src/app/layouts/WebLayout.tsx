@@ -130,7 +130,7 @@ export function WebLayout() {
             <>
               <Chip
                 color="secondary"
-                label={`${user?.firstName ?? 'Клиент'} · ${user?.role ?? 'user'}`}
+                label={`${user?.login ?? 'Клиент'} · ${user?.role ?? 'user'}`}
                 variant="filled"
               />
               <Button

@@ -4,6 +4,7 @@ import { CartPage } from '../../../../pages/cart/CartPage'
 import { CheckoutPage } from '../../../../pages/checkout/CheckoutPage'
 import { MenuPage } from '../../../../pages/menu/MenuPage'
 import { ProfilePage } from '../../../../pages/profile/ProfilePage'
+import { PersonalDataConsentPage } from '../../../../pages/legal/PersonalDataConsentPage'
 
 export function UserRouter() {
   return (
@@ -11,6 +12,7 @@ export function UserRouter() {
       <Route element={<WebLayout />} path="/">
         <Route element={<Navigate replace to="/menu" />} index />
         <Route element={<MenuPage />} path="menu" />
+        <Route element={<PersonalDataConsentPage />} path="legal/personal-data-consent" />
         <Route element={<CartPage />} path="cart" />
         <Route element={<CheckoutPage />} path="checkout" />
         <Route element={<ProfilePage />} path="profile" />

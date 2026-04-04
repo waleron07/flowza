@@ -64,6 +64,16 @@ export class UsersManagementService {
       );
     }
 
+    const existingUserByEmail = await this.usersService.findByEmail(dto.email);
+    if (existingUserByEmail) {
+      throw new ConflictException('Пользователь с таким email уже существует');
+    }
+
+    const existingUserByLogin = await this.usersService.findByLogin(dto.login);
+    if (existingUserByLogin) {
+      throw new ConflictException('Пользователь с таким логином уже существует');
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     let organizationIds = this.tenantAccessService.normalizeOrganizationIds(
@@ -105,8 +115,7 @@ export class UsersManagementService {
       phone: dto.phone,
       passwordHash,
       role: dto.role,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
+      login: dto.login,
       isActive: true,
     });
   }

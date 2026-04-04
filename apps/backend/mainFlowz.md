@@ -34,9 +34,8 @@ pnpm --filter backend exec prisma studio
 - `phone`: например `+79991234567`
 - `passwordHash`: сюда нужно вставить bcrypt-хеш пароля, а не сам пароль
 - `role`: `superAdmin`
-- `firstName`: например `Admin`
-- `lastName`: можно оставить пустым
-- `email`: можно оставить пустым или указать, например `admin@flowza.local`
+- `login`: например `admin_root`
+- `email`: обязательно, например `admin@flowza.local`
 - `isActive`: `true`
 - `tenantId`: для первого `superAdmin` можно оставить пустым
 
@@ -44,8 +43,7 @@ pnpm --filter backend exec prisma studio
 
 - `phone`: `+79991234567`
 - `role`: `superAdmin`
-- `firstName`: `Admin`
-- `lastName`: `Root`
+- `login`: `admin_root`
 - `email`: `admin@flowza.local`
 - `isActive`: `true`
 - `tenantId`: пусто

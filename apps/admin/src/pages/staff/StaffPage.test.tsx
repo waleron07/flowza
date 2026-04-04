@@ -44,7 +44,7 @@ describe('StaffPage', () => {
       user: {
         id: 1,
         phone: '+79990000001',
-        firstName: 'Super',
+        login: 'super_admin',
         role: 'superAdmin',
         tenantId: null,
       },
@@ -65,7 +65,7 @@ describe('StaffPage', () => {
       user: {
         id: 2,
         phone: '+79990000002',
-        firstName: 'Admin',
+        login: 'admin_user',
         role: 'admin',
         tenantId: 12,
       },
@@ -89,7 +89,8 @@ describe('StaffPage', () => {
     mockedCreateStaffUserRequest.mockResolvedValue({
       id: 15,
       phone: '+79991234567',
-      firstName: 'Иван',
+      login: 'ivan_staff',
+      email: 'ivan.staff@example.com',
       role: 'moderator',
       tenantId: 22,
       isActive: true,
@@ -100,7 +101,7 @@ describe('StaffPage', () => {
       user: {
         id: 2,
         phone: '+79990000002',
-        firstName: 'Admin',
+        login: 'admin_user',
         role: 'admin',
         tenantId: 22,
       },
@@ -109,20 +110,22 @@ describe('StaffPage', () => {
     })
 
     await user.type(screen.getByLabelText(/телефон/i), '+79991234567')
-    await user.type(screen.getByLabelText(/^имя/i), 'Иван')
+    await user.type(screen.getByLabelText(/логин/i), 'ivan_staff')
+    await user.type(screen.getByLabelText(/email/i), 'ivan.staff@example.com')
     await user.type(screen.getByLabelText(/пароль/i), 'strongpass')
     await user.click(screen.getByRole('button', { name: /создать сотрудника/i }))
 
     expect(mockedCreateStaffUserRequest).toHaveBeenCalledTimes(1)
     expect(mockedCreateStaffUserRequest.mock.calls[0]?.[0]).toEqual({
       phone: '+79991234567',
-      firstName: 'Иван',
+      login: 'ivan_staff',
+      email: 'ivan.staff@example.com',
       password: 'strongpass',
       role: 'moderator',
     })
 
     expect(
-      await screen.findByText(/сотрудник иван успешно создан с ролью moderator/i),
+      await screen.findByText(/сотрудник ivan_staff успешно создан с ролью moderator/i),
     ).toBeInTheDocument()
   })
 })

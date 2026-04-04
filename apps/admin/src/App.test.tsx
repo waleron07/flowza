@@ -51,7 +51,7 @@ describe('App', () => {
     renderApp()
 
     expect(screen.getByRole('heading', { name: /вход в админку flowza/i })).toBeInTheDocument()
-    expect(screen.getByLabelText(/телефон/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/идентификатор/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/пароль/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /войти/i })).toBeInTheDocument()
   })
@@ -63,7 +63,7 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: /войти/i }))
 
-    expect(await screen.findByText(/введите номер телефона/i)).toBeInTheDocument()
+    expect(await screen.findByText(/введите идентификатор/i)).toBeInTheDocument()
     expect(await screen.findByText(/введите пароль/i)).toBeInTheDocument()
   })
 
@@ -75,7 +75,7 @@ describe('App', () => {
       user: {
         id: 1,
         phone: '+79991234567',
-        firstName: 'Админ',
+        login: 'admin_login',
         role: 'admin',
         tenantId: 1,
       },
@@ -83,12 +83,12 @@ describe('App', () => {
 
     renderApp()
 
-    await user.type(screen.getByLabelText(/телефон/i), '+79991234567')
+    await user.type(screen.getByLabelText(/идентификатор/i), '+79991234567')
     await user.type(screen.getByLabelText(/пароль/i), 'secret12')
     await user.click(screen.getByRole('button', { name: /войти/i }))
 
     expect(await screen.findByRole('heading', { name: /dashboard flowza/i })).toBeInTheDocument()
-    expect(screen.getByText(/вы вошли как/i)).toHaveTextContent('Админ')
+    expect(screen.getByText(/вы вошли как/i)).toHaveTextContent('admin_login')
     expect(window.localStorage.getItem('flowza.admin.accessToken')).toBe('test-token')
   })
 
@@ -100,7 +100,7 @@ describe('App', () => {
       user: {
         id: 7,
         phone: '+79991230000',
-        firstName: 'Клиент',
+        login: 'client_login',
         role: 'user',
         tenantId: 3,
       },
@@ -108,7 +108,7 @@ describe('App', () => {
 
     renderApp()
 
-    await user.type(screen.getByLabelText(/телефон/i), '+79991230000')
+    await user.type(screen.getByLabelText(/идентификатор/i), '+79991230000')
     await user.type(screen.getByLabelText(/пароль/i), 'secret12')
     await user.click(screen.getByRole('button', { name: /войти/i }))
 
@@ -123,7 +123,7 @@ describe('App', () => {
     mockedGetMeRequest.mockResolvedValue({
       id: 10,
       phone: '+79995554433',
-      firstName: 'Модератор',
+      login: 'moderator_login',
       role: 'moderator',
       tenantId: 15,
     })
@@ -133,6 +133,6 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /dashboard flowza/i })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /сотрудники/i })).not.toBeInTheDocument()
     expect(screen.getAllByText('Заказы').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/модератор/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/moderator/i).length).toBeGreaterThan(0)
   })
 })
