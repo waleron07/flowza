@@ -11,17 +11,41 @@ import {
 
 export class CreateTenantDto {
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsNotEmpty()
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
     message:
       'Slug must contain lowercase latin letters, numbers and hyphens only',
   })
-  slug: string;
+  slug!: string;
 
   @IsOptional()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  heroTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  heroSubtitle?: string;
+
+  @IsOptional()
+  @IsString()
+  heroDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  heroImageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  seoTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  seoDescription?: string;
 
   @IsOptional()
   @IsDateString()

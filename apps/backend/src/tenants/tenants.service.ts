@@ -31,13 +31,171 @@ export class TenantsService {
     });
   }
 
+  async findManageableTenantsForActor(actor: TenantActor) {
+    if (actor.role === UserRole.SUPER_ADMIN) {
+      return this.prisma.tenant.findMany({
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          isActive: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    const organizationIds = this.tenantAccessService.normalizeOrganizationIds(
+      actor.organizationIds,
+    );
+
+    if (organizationIds.length === 0) {
+      return [];
+    }
+
+    return this.prisma.tenant.findMany({
+      where: {
+        id: { in: organizationIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async findPublicCatalogBySlug(slug: string) {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { slug, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        heroTitle: true,
+        heroSubtitle: true,
+        heroDescription: true,
+        heroImageUrl: true,
+        seoTitle: true,
+        seoDescription: true,
+        phone: true,
+        address: true,
+        timezone: true,
+        workingHours: true,
+        deliveryFee: true,
+        minOrderAmount: true,
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Организация не найдена');
+    }
+
+    const [categories, products] = await Promise.all([
+      this.prisma.category.findMany({
+        where: {
+          tenantId: tenant.id,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          imageUrl: true,
+          sortOrder: true,
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      }),
+      this.prisma.product.findMany({
+        where: {
+          tenantId: tenant.id,
+          isActive: true,
+          category: {
+            isActive: true,
+          },
+        },
+        select: {
+          id: true,
+          categoryId: true,
+          name: true,
+          description: true,
+          imageUrl: true,
+          badgeText: true,
+          price: true,
+          currency: true,
+        },
+        orderBy: [{ name: 'asc' }],
+      }),
+    ]);
+
+    return {
+      tenant,
+      categories,
+      products,
+    };
+  }
+
+  async findManagementViewByTenantId(tenantId: number, actor: TenantActor) {
+    this.tenantAccessService.assertCanManageOrganization(actor, tenantId);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        heroTitle: true,
+        heroSubtitle: true,
+        heroDescription: true,
+        heroImageUrl: true,
+        seoTitle: true,
+        seoDescription: true,
+        isActive: true,
+        phone: true,
+        address: true,
+        timezone: true,
+        workingHours: true,
+        deliveryFee: true,
+        minOrderAmount: true,
+        subscription: true,
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Организация не найдена');
+    }
+
+    const [categories, products] = await Promise.all([
+      this.prisma.category.findMany({
+        where: { tenantId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      }),
+      this.prisma.product.findMany({
+        where: { tenantId },
+        orderBy: [{ name: 'asc' }],
+      }),
+    ]);
+
+    return {
+      tenant,
+      categories,
+      products,
+    };
+  }
+
   async findAccessibleTenantsForActor(actor: TenantActor) {
     if (actor.role === UserRole.SUPER_ADMIN) {
       return this.findActiveTenants();
     }
 
-    const organizationIds =
-      this.tenantAccessService.normalizeOrganizationIds(actor.organizationIds);
+    const organizationIds = this.tenantAccessService.normalizeOrganizationIds(
+      actor.organizationIds,
+    );
 
     if (organizationIds.length === 0) {
       return [];
@@ -64,6 +222,12 @@ export class TenantsService {
         name: dto.name,
         slug: dto.slug,
         description: dto.description,
+        heroTitle: dto.heroTitle,
+        heroSubtitle: dto.heroSubtitle,
+        heroDescription: dto.heroDescription,
+        heroImageUrl: dto.heroImageUrl,
+        seoTitle: dto.seoTitle,
+        seoDescription: dto.seoDescription,
         phone: dto.phone,
         address: dto.address,
         timezone: dto.timezone ?? 'UTC',
@@ -108,6 +272,12 @@ export class TenantsService {
         name: dto.name,
         slug: dto.slug,
         description: dto.description,
+        heroTitle: dto.heroTitle,
+        heroSubtitle: dto.heroSubtitle,
+        heroDescription: dto.heroDescription,
+        heroImageUrl: dto.heroImageUrl,
+        seoTitle: dto.seoTitle,
+        seoDescription: dto.seoDescription,
         phone: dto.phone,
         address: dto.address,
         timezone: dto.timezone,

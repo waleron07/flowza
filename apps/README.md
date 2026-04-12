@@ -2,13 +2,14 @@
 
 Каталог `apps` — часть монорепозитория **Flowza** в корне `D:\SaaS\flowza`. Пакеты подключены через [pnpm workspaces](https://pnpm.io/workspaces) (`pnpm-workspace.yaml`: `apps/*`, `packages/*`).
 
-## Три части продукта
+## Части продукта
 
 | Пакет         | Назначение                                      | Стек (по проекту)            |
 | ------------- | ----------------------------------------------- | ---------------------------- |
 | **`backend`** | HTTP API, бизнес-логика, данные                 | NestJS, Prisma, JWT/Passport |
 | **`web`**     | Публичный клиент для конечных пользователей     | Vite, React                  |
 | **`admin`**   | Внутренняя панель (операции, сотрудники и т.д.) | Vite, React, MUI             |
+| **`swagger`** | Swagger UI и OpenAPI-спецификация готового API  | Vite, Swagger UI             |
 
 **Связь:** `web` и `admin` — отдельные фронтенды; оба опираются на **`backend`** как на единый источник API и авторизации. Деплой и масштабирование у каждого приложения могут быть независимыми.
 
@@ -28,7 +29,41 @@
 
 - `pnpm dev` — параллельно backend, admin и web (см. корневой `package.json`)
 - `pnpm dev:backend` / `pnpm dev:admin` / `pnpm dev:web` — по одному приложению
+- `pnpm dev:swagger` — отдельный Swagger UI для уже готовых backend-эндпоинтов
 - `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` — по всем приложениям в `apps/*`, где есть соответствующие скрипты
+
+## Как поднять Swagger
+
+Swagger находится в `apps/swagger` и использует готовую OpenAPI-спецификацию из `apps/swagger/openapi.json`.
+
+Перед запуском Swagger нужно:
+
+- установить зависимости из корня репозитория: `pnpm install`;
+- убедиться, что backend доступен на `http://localhost:3001`, потому что этот URL указан как основной server в спецификации;
+- если backend запускается на другом порту, обновить `servers` в `apps/swagger/openapi.json`.
+
+Основной запуск из корня:
+
+- `pnpm run dev:swagger`
+
+После этого Swagger UI будет доступен по адресу:
+
+- `http://localhost:5175`
+
+Полезные команды:
+
+- production-сборка Swagger: `pnpm run build:swagger`
+- локальный backend для запросов из Swagger: `pnpm run dev:backend`
+
+Что уже задокументировано в Swagger:
+
+- `auth`: регистрация, логин, подтверждение email, повторная отправка кода, `me`, удаление своего пользователя;
+- `tenants`: публичный каталог, список активных/доступных/управляемых организаций, создание, редактирование, удаление;
+- `categories`: список, создание, редактирование, удаление;
+- `products`: список, создание, редактирование, удаление;
+- `orders`: создание заказа и список своих заказов;
+- `users`: создание staff-пользователя;
+- `health`: health-check backend.
 
 ## Как запускать Prisma
 

@@ -1,0 +1,1600 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Flowza API",
+    "version": "0.1.0",
+    "description": "Документация по уже реализованным backend-эндпоинтам Flowza. Спецификация собрана по текущим NestJS controller и DTO."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Local backend"
+    }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Проверка состояния сервиса" },
+    { "name": "Auth", "description": "Регистрация, вход и управление сессией" },
+    { "name": "Tenants", "description": "Публичные и управляемые организации" },
+    { "name": "Categories", "description": "Категории организации" },
+    { "name": "Products", "description": "Товары организации" },
+    { "name": "Orders", "description": "Создание и просмотр заказов" },
+    { "name": "Users", "description": "Управление staff-пользователями" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Проверить состояние backend",
+        "responses": {
+          "200": {
+            "description": "Сервис доступен",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Зарегистрировать пользователя",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterDto" },
+              "example": {
+                "phone": "+79991234567",
+                "login": "tokyo_roll_user",
+                "email": "user@example.com",
+                "password": "StrongPass123",
+                "consentToPrivacyPolicy": true,
+                "consentToPersonalData": true,
+                "agreementVersion": "2026-04",
+                "captchaToken": "turnstile-token"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Регистрация успешна, требуется подтверждение email",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegisterResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" },
+          "429": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Войти по телефону, email или login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginDto" },
+              "example": {
+                "identifier": "admin@example.com",
+                "password": "StrongPass123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Успешный вход",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/auth/register/verify-email": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Подтвердить email кодом из письма",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VerifyEmailCodeDto" },
+              "example": {
+                "email": "user@example.com",
+                "code": "123456"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Email подтвержден",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VerifyEmailResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "429": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/auth/register/resend-email-code": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Запросить повторную отправку email-кода",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResendEmailCodeDto" },
+              "example": {
+                "email": "user@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Повторная отправка обработана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendEmailCodeResponse"
+                }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Получить текущего пользователя",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Данные текущего пользователя",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MeResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      },
+      "delete": {
+        "tags": ["Auth"],
+        "summary": "Деактивировать текущего пользователя",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Пользователь деактивирован",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericSuccess" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/tenants": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Получить список активных организаций",
+        "responses": {
+          "200": {
+            "description": "Список активных организаций",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicTenantListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Tenants"],
+        "summary": "Создать организацию",
+        "description": "Доступно только для superAdmin.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTenantDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Организация создана",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantDetails" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/tenants/accessible": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Получить активные организации, доступные текущему сотруднику",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Доступные организации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicTenantListItem"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/tenants/manageable": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Получить управляемые организации",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Список управляемых организаций",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManageableOrganizationListItem"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/tenants/{slug}/catalog": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Получить публичный каталог организации по slug",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "example": "tokyo-roll"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Публичный каталог",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCatalogResponse"
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/tenants/{tenantId}/management": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Получить management view организации",
+        "description": "Доступно для superAdmin, admin и moderator в рамках доступных организаций.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Организация, категории и товары",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationManagementResponse"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/tenants/{tenantId}": {
+      "patch": {
+        "tags": ["Tenants"],
+        "summary": "Обновить организацию",
+        "description": "Для superAdmin и admin. Поля `isActive` и `subscription` доступны только superAdmin.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTenantDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Организация обновлена",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantDetails" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      },
+      "delete": {
+        "tags": ["Tenants"],
+        "summary": "Удалить организацию",
+        "description": "Доступно только для superAdmin.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Организация удалена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "example": 1 }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": ["Categories"],
+        "summary": "Получить категории организации",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Категории организации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationCategory"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      },
+      "post": {
+        "tags": ["Categories"],
+        "summary": "Создать категорию",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCategoryDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Категория создана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationCategory"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/categories/{categoryId}": {
+      "patch": {
+        "tags": ["Categories"],
+        "summary": "Обновить категорию",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 5
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateCategoryDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Категория обновлена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationCategory"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      },
+      "delete": {
+        "tags": ["Categories"],
+        "summary": "Удалить категорию",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Категория удалена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "example": 5 }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Получить товары организации",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Товары организации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationProduct"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Создать товар",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProductDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Товар создан",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrganizationProduct" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/products/{productId}": {
+      "patch": {
+        "tags": ["Products"],
+        "summary": "Обновить товар",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 7
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProductDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Товар обновлен",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrganizationProduct" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      },
+      "delete": {
+        "tags": ["Products"],
+        "summary": "Удалить товар",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 7
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Товар удален",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "example": 7 }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Создать заказ",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateOrderDto" },
+              "example": {
+                "tenantId": 1,
+                "deliveryAddress": "Москва, ул. Пушкина, д. 10",
+                "paymentMethod": "CARD",
+                "items": [
+                  { "productId": 7, "quantity": 2 },
+                  { "productId": 9, "quantity": 1 }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Заказ создан",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/my": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Получить свои заказы",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Список заказов текущего пользователя",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Order" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/users/staff": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Создать staff-пользователя",
+        "description": "Доступно для admin и superAdmin.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateStaffUserDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Staff-пользователь создан",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "example": 12 },
+                    "phone": { "type": "string", "example": "+79991112233" },
+                    "login": { "type": "string", "example": "moderator_tokyo" },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "example": "moderator@example.com"
+                    },
+                    "role": { "$ref": "#/components/schemas/UserRole" },
+                    "primaryTenantId": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 1
+                    },
+                    "organizationIds": {
+                      "type": "array",
+                      "items": { "type": "integer" },
+                      "example": [1]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "ErrorResponse": {
+        "description": "Ошибка запроса",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-12T16:00:00.000Z"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "statusCode": { "type": "integer", "example": 400 },
+          "message": {
+            "oneOf": [
+              { "type": "string", "example": "Validation failed" },
+              {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": ["email must be an email"]
+              }
+            ]
+          },
+          "error": { "type": "string", "example": "Bad Request" }
+        }
+      },
+      "GenericSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true }
+        },
+        "required": ["success"]
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": ["superAdmin", "admin", "moderator", "operator", "user"]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "required": [
+          "phone",
+          "login",
+          "email",
+          "password",
+          "consentToPrivacyPolicy",
+          "consentToPersonalData",
+          "agreementVersion",
+          "captchaToken"
+        ],
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+7\\d{10}$",
+            "example": "+79991234567"
+          },
+          "login": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "example": "tokyo_roll_user"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "example": "StrongPass123"
+          },
+          "consentToPrivacyPolicy": { "type": "boolean", "example": true },
+          "consentToPersonalData": { "type": "boolean", "example": true },
+          "agreementVersion": { "type": "string", "example": "2026-04" },
+          "captchaToken": { "type": "string", "example": "turnstile-token" }
+        }
+      },
+      "RegisterResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "emailSentViaSmtp",
+          "verificationRequired",
+          "verificationTtlSec",
+          "resendAvailableInSec"
+        ],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": {
+            "type": "string",
+            "example": "Verification code sent to email"
+          },
+          "emailSentViaSmtp": { "type": "boolean", "example": true },
+          "verificationRequired": { "type": "boolean", "example": true },
+          "verificationTtlSec": { "type": "integer", "example": 900 },
+          "resendAvailableInSec": { "type": "integer", "example": 60 }
+        }
+      },
+      "LoginDto": {
+        "type": "object",
+        "required": ["identifier", "password"],
+        "properties": {
+          "identifier": { "type": "string", "example": "admin@example.com" },
+          "password": { "type": "string", "example": "StrongPass123" }
+        }
+      },
+      "AuthUser": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "example": "user@example.com"
+          },
+          "phone": { "type": "string", "example": "+79991234567" },
+          "login": { "type": "string", "example": "tokyo_roll_user" },
+          "role": { "$ref": "#/components/schemas/UserRole" },
+          "primaryTenantId": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "organizationIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "example": [1, 2]
+          },
+          "isActive": { "type": "boolean", "example": true }
+        },
+        "required": [
+          "id",
+          "phone",
+          "login",
+          "role",
+          "primaryTenantId",
+          "organizationIds"
+        ]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": ["accessToken", "user"],
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          },
+          "user": { "$ref": "#/components/schemas/AuthUser" }
+        }
+      },
+      "VerifyEmailCodeDto": {
+        "type": "object",
+        "required": ["email", "code"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "example": "123456"
+          }
+        }
+      },
+      "VerifyEmailResponse": {
+        "type": "object",
+        "required": ["success", "accessToken", "user"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "accessToken": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          },
+          "user": { "$ref": "#/components/schemas/AuthUser" }
+        }
+      },
+      "ResendEmailCodeDto": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          }
+        }
+      },
+      "ResendEmailCodeResponse": {
+        "type": "object",
+        "required": ["success", "message", "resendAvailableInSec"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": {
+            "type": "string",
+            "example": "If account exists, code has been sent"
+          },
+          "emailSentViaSmtp": { "type": "boolean", "example": true },
+          "resendAvailableInSec": { "type": "integer", "example": 60 }
+        }
+      },
+      "MeResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/AuthUser" },
+          {
+            "type": "object",
+            "required": ["isActive"],
+            "properties": {
+              "isActive": { "type": "boolean", "example": true }
+            }
+          }
+        ]
+      },
+      "PublicTenantListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Tokyo Roll" },
+          "slug": { "type": "string", "example": "tokyo-roll" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Японская кухня и роллы"
+          }
+        },
+        "required": ["id", "name", "slug", "description"]
+      },
+      "ManageableOrganizationListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Tokyo Roll" },
+          "slug": { "type": "string", "example": "tokyo-roll" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Японская кухня и роллы"
+          },
+          "isActive": { "type": "boolean", "example": true }
+        },
+        "required": ["id", "name", "slug", "description", "isActive"]
+      },
+      "TenantDetails": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Tokyo Roll" },
+          "slug": { "type": "string", "example": "tokyo-roll" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Японская кухня и роллы"
+          },
+          "heroTitle": {
+            "type": "string",
+            "nullable": true,
+            "example": "Свежие роллы каждый день"
+          },
+          "heroSubtitle": {
+            "type": "string",
+            "nullable": true,
+            "example": "Доставка за 30 минут"
+          },
+          "heroDescription": {
+            "type": "string",
+            "nullable": true,
+            "example": "Собираем сеты из свежих ингредиентов"
+          },
+          "heroImageUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://example.com/hero.jpg"
+          },
+          "seoTitle": {
+            "type": "string",
+            "nullable": true,
+            "example": "Tokyo Roll | Доставка роллов"
+          },
+          "seoDescription": {
+            "type": "string",
+            "nullable": true,
+            "example": "Роллы, суши и сеты с доставкой"
+          },
+          "isActive": { "type": "boolean", "example": true },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "example": "+79990000000"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "example": "Москва"
+          },
+          "timezone": { "type": "string", "example": "Europe/Moscow" },
+          "workingHours": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "example": { "mon": "10:00-22:00", "tue": "10:00-22:00" }
+          },
+          "deliveryFee": { "type": "integer", "example": 199 },
+          "minOrderAmount": { "type": "integer", "example": 1000 },
+          "subscription": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2026-12-31T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "description",
+          "heroTitle",
+          "heroSubtitle",
+          "heroDescription",
+          "heroImageUrl",
+          "seoTitle",
+          "seoDescription",
+          "isActive",
+          "phone",
+          "address",
+          "timezone",
+          "workingHours",
+          "deliveryFee",
+          "minOrderAmount"
+        ]
+      },
+      "PublicCatalogCategory": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 5 },
+          "name": { "type": "string", "example": "Роллы" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Фирменные роллы"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://example.com/category.jpg"
+          },
+          "sortOrder": { "type": "integer", "example": 1 }
+        },
+        "required": ["id", "name", "description", "imageUrl", "sortOrder"]
+      },
+      "PublicCatalogProduct": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 7 },
+          "categoryId": { "type": "integer", "example": 5 },
+          "name": { "type": "string", "example": "Филадельфия" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Лосось, сыр, рис"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://example.com/product.jpg"
+          },
+          "badgeText": { "type": "string", "nullable": true, "example": "Хит" },
+          "price": { "type": "integer", "example": 520 },
+          "currency": { "type": "string", "example": "RUB" }
+        },
+        "required": [
+          "id",
+          "categoryId",
+          "name",
+          "description",
+          "imageUrl",
+          "badgeText",
+          "price",
+          "currency"
+        ]
+      },
+      "PublicCatalogResponse": {
+        "type": "object",
+        "properties": {
+          "tenant": { "$ref": "#/components/schemas/TenantDetails" },
+          "categories": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicCatalogCategory" }
+          },
+          "products": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicCatalogProduct" }
+          }
+        },
+        "required": ["tenant", "categories", "products"]
+      },
+      "OrganizationCategory": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 5 },
+          "tenantId": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Роллы" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Фирменные роллы"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://example.com/category.jpg"
+          },
+          "sortOrder": { "type": "integer", "example": 1 },
+          "isActive": { "type": "boolean", "example": true }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "name",
+          "description",
+          "imageUrl",
+          "sortOrder",
+          "isActive"
+        ]
+      },
+      "OrganizationProduct": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 7 },
+          "tenantId": { "type": "integer", "example": 1 },
+          "categoryId": { "type": "integer", "example": 5 },
+          "name": { "type": "string", "example": "Филадельфия" },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Лосось, сыр, рис"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://example.com/product.jpg"
+          },
+          "badgeText": { "type": "string", "nullable": true, "example": "Хит" },
+          "price": { "type": "integer", "example": 520 },
+          "currency": { "type": "string", "example": "RUB" },
+          "isActive": { "type": "boolean", "example": true }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "categoryId",
+          "name",
+          "description",
+          "imageUrl",
+          "badgeText",
+          "price",
+          "currency",
+          "isActive"
+        ]
+      },
+      "OrganizationManagementResponse": {
+        "type": "object",
+        "properties": {
+          "tenant": { "$ref": "#/components/schemas/TenantDetails" },
+          "categories": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrganizationCategory" }
+          },
+          "products": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrganizationProduct" }
+          }
+        },
+        "required": ["tenant", "categories", "products"]
+      },
+      "CreateTenantDto": {
+        "type": "object",
+        "required": ["name", "slug"],
+        "properties": {
+          "name": { "type": "string", "example": "Tokyo Roll" },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "example": "tokyo-roll"
+          },
+          "description": {
+            "type": "string",
+            "example": "Японская кухня и роллы"
+          },
+          "heroTitle": {
+            "type": "string",
+            "example": "Свежие роллы каждый день"
+          },
+          "heroSubtitle": {
+            "type": "string",
+            "example": "Доставка за 30 минут"
+          },
+          "heroDescription": {
+            "type": "string",
+            "example": "Сеты, суши и фирменные роллы"
+          },
+          "heroImageUrl": {
+            "type": "string",
+            "example": "https://example.com/hero.jpg"
+          },
+          "seoTitle": {
+            "type": "string",
+            "example": "Tokyo Roll | Доставка роллов"
+          },
+          "seoDescription": {
+            "type": "string",
+            "example": "Роллы, суши и сеты с доставкой"
+          },
+          "subscription": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-12-31T00:00:00.000Z"
+          },
+          "phone": { "type": "string", "example": "+79990000000" },
+          "address": { "type": "string", "example": "Москва" },
+          "timezone": { "type": "string", "example": "Europe/Moscow" },
+          "workingHours": {
+            "type": "object",
+            "additionalProperties": true,
+            "example": { "mon": "10:00-22:00", "tue": "10:00-22:00" }
+          },
+          "deliveryFee": { "type": "integer", "example": 199 },
+          "minOrderAmount": { "type": "integer", "example": 1000 }
+        }
+      },
+      "UpdateTenantDto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Tokyo Roll Premium" },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "example": "tokyo-roll"
+          },
+          "description": {
+            "type": "string",
+            "example": "Обновленное описание"
+          },
+          "heroTitle": {
+            "type": "string",
+            "example": "Новый геройский заголовок"
+          },
+          "heroSubtitle": {
+            "type": "string",
+            "example": "Еще быстрее, еще свежее"
+          },
+          "heroDescription": {
+            "type": "string",
+            "example": "Расширили ассортимент"
+          },
+          "heroImageUrl": {
+            "type": "string",
+            "example": "https://example.com/new-hero.jpg"
+          },
+          "seoTitle": { "type": "string", "example": "Tokyo Roll Premium" },
+          "seoDescription": {
+            "type": "string",
+            "example": "Новая SEO-описание"
+          },
+          "isActive": { "type": "boolean", "example": true },
+          "subscription": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-12-31T00:00:00.000Z"
+          },
+          "phone": { "type": "string", "example": "+79990000000" },
+          "address": { "type": "string", "example": "Москва, ул. Пример, 1" },
+          "timezone": { "type": "string", "example": "Europe/Moscow" },
+          "workingHours": {
+            "type": "object",
+            "additionalProperties": true,
+            "example": { "fri": "10:00-23:00" }
+          },
+          "deliveryFee": { "type": "integer", "example": 250 },
+          "minOrderAmount": { "type": "integer", "example": 1200 }
+        }
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "required": ["tenantId", "name"],
+        "properties": {
+          "tenantId": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Роллы" },
+          "description": { "type": "string", "example": "Фирменные роллы" },
+          "imageUrl": {
+            "type": "string",
+            "example": "https://example.com/category.jpg"
+          },
+          "sortOrder": { "type": "integer", "example": 1 },
+          "isActive": { "type": "boolean", "example": true }
+        }
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Сеты" },
+          "description": { "type": "string", "example": "Большие наборы" },
+          "imageUrl": {
+            "type": "string",
+            "example": "https://example.com/sets.jpg"
+          },
+          "sortOrder": { "type": "integer", "example": 2 },
+          "isActive": { "type": "boolean", "example": true }
+        }
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "required": ["tenantId", "categoryId", "name", "price"],
+        "properties": {
+          "tenantId": { "type": "integer", "example": 1 },
+          "categoryId": { "type": "integer", "example": 5 },
+          "name": { "type": "string", "example": "Филадельфия" },
+          "description": { "type": "string", "example": "Лосось, сыр, рис" },
+          "imageUrl": {
+            "type": "string",
+            "example": "https://example.com/product.jpg"
+          },
+          "badgeText": { "type": "string", "example": "Хит" },
+          "price": { "type": "integer", "example": 520 },
+          "currency": { "type": "string", "example": "RUB" },
+          "isActive": { "type": "boolean", "example": true }
+        }
+      },
+      "UpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": { "type": "integer", "example": 6 },
+          "name": { "type": "string", "example": "Филадельфия люкс" },
+          "description": { "type": "string", "example": "Больше лосося" },
+          "imageUrl": {
+            "type": "string",
+            "example": "https://example.com/product-new.jpg"
+          },
+          "badgeText": { "type": "string", "example": "Новинка" },
+          "price": { "type": "integer", "example": 590 },
+          "currency": { "type": "string", "example": "RUB" },
+          "isActive": { "type": "boolean", "example": true }
+        }
+      },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": ["CARD", "CASH", "APPLE_PAY", "GOOGLE_PAY"]
+      },
+      "CreateOrderItemDto": {
+        "type": "object",
+        "required": ["productId", "quantity"],
+        "properties": {
+          "productId": { "type": "integer", "example": 7 },
+          "quantity": { "type": "integer", "minimum": 1, "example": 2 }
+        }
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "required": ["tenantId", "deliveryAddress", "paymentMethod", "items"],
+        "properties": {
+          "tenantId": { "type": "integer", "example": 1 },
+          "deliveryAddress": {
+            "type": "string",
+            "example": "Москва, ул. Пушкина, д. 10"
+          },
+          "paymentMethod": { "$ref": "#/components/schemas/PaymentMethod" },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/CreateOrderItemDto" }
+          }
+        }
+      },
+      "OrderItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "productId": { "type": "integer", "example": 7 },
+          "productName": { "type": "string", "example": "Филадельфия" },
+          "variantName": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "quantity": { "type": "integer", "example": 2 },
+          "unitPrice": { "type": "integer", "example": 520 },
+          "totalPrice": { "type": "integer", "example": 1040 }
+        },
+        "required": [
+          "id",
+          "productId",
+          "productName",
+          "variantName",
+          "quantity",
+          "unitPrice",
+          "totalPrice"
+        ]
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 25 },
+          "orderNumber": { "type": "string", "example": "FD-2026-000025" },
+          "tenantId": { "type": "integer", "example": 1 },
+          "tenantName": { "type": "string", "example": "Flowza Cafe" },
+          "tenantSlug": { "type": "string", "example": "flowza-cafe" },
+          "status": { "type": "string", "example": "NEW" },
+          "paymentMethod": { "type": "string", "example": "CARD" },
+          "paymentStatus": { "type": "string", "example": "PENDING" },
+          "currency": { "type": "string", "example": "RUB" },
+          "deliveryAddress": {
+            "type": "string",
+            "example": "Москва, ул. Пушкина, д. 10"
+          },
+          "subtotal": { "type": "integer", "example": 1040 },
+          "deliveryFee": { "type": "integer", "example": 199 },
+          "discountAmount": { "type": "integer", "example": 0 },
+          "finalAmount": { "type": "integer", "example": 1239 },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-12T18:00:00.000Z"
+          },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrderItem" }
+          }
+        },
+        "required": [
+          "id",
+          "orderNumber",
+          "tenantId",
+          "tenantName",
+          "tenantSlug",
+          "status",
+          "paymentMethod",
+          "paymentStatus",
+          "currency",
+          "deliveryAddress",
+          "subtotal",
+          "deliveryFee",
+          "discountAmount",
+          "finalAmount",
+          "createdAt",
+          "items"
+        ]
+      },
+      "CreateStaffUserDto": {
+        "type": "object",
+        "required": ["phone", "login", "email", "password", "role"],
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+7\\d{10}$",
+            "example": "+79991112233"
+          },
+          "login": { "type": "string", "example": "moderator_tokyo" },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "moderator@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "example": "StrongPass123"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["superAdmin", "admin", "moderator", "operator", "user"],
+            "example": "moderator"
+          },
+          "primaryTenantId": { "type": "integer", "example": 1 },
+          "organizationIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "example": [1, 2]
+          }
+        }
+      }
+    }
+  }
+}

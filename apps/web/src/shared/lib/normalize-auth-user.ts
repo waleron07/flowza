@@ -1,4 +1,4 @@
-import type { AuthApiUser, AuthUser } from '../types/auth'
+import type { AuthApiUser, AuthUser } from "../types/auth";
 
 export function normalizeAuthUser(raw: AuthApiUser): AuthUser {
   return {
@@ -8,6 +8,7 @@ export function normalizeAuthUser(raw: AuthApiUser): AuthUser {
     role: raw.role,
     email: raw.email,
     tenantId: raw.tenantId ?? raw.primaryTenantId ?? null,
+    organizationIds: raw.organizationIds ?? [],
     isActive: raw.isActive,
-  }
+  };
 }

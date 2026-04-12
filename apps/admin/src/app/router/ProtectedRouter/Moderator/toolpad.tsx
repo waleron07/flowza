@@ -1,14 +1,15 @@
-import type { AdminNavigationItem } from '../../../layouts/AdminLayout'
+import type { AdminNavigationItem } from "../../../layouts/AdminLayout";
 
 export const moderatorToolpad: {
-  navigationItems: AdminNavigationItem[]
-  subtitle: string
-  title: string
+  navigationItems: AdminNavigationItem[];
+  subtitle: string;
+  title: string;
 } = {
-  title: 'Flowza Moderator',
-  subtitle: 'Контроль заказов и операционных сценариев',
+  title: "Flowza Moderator",
+  subtitle: "Контроль заказов и операционных сценариев",
   navigationItems: [
-    { to: '/', label: 'Dashboard' },
-    { to: '/orders', label: 'Заказы' },
+    { to: "/", label: "Dashboard" },
+    { to: "/organizations", label: "Организации" },
+    { to: "/orders", label: "Заказы" },
   ],
-}
+};

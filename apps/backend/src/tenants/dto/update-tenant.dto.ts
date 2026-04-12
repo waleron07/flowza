@@ -24,6 +24,30 @@ export class UpdateTenantDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  heroTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  heroSubtitle?: string;
+
+  @IsOptional()
+  @IsString()
+  heroDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  heroImageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  seoTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  seoDescription?: string;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 

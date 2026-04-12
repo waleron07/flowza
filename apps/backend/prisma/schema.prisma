@@ -75,6 +75,12 @@ model Tenant {
   name             String
   slug             String               @unique
   description      String?
+  heroTitle        String?
+  heroSubtitle     String?
+  heroDescription  String?
+  heroImageUrl     String?
+  seoTitle         String?
+  seoDescription   String?
   isActive         Boolean              @default(true)
   phone            String?
   address          String?
@@ -115,6 +121,7 @@ model User {
   reviews          Review[]
   auditLogs        AuditLog[]
   orders           Order[]
+  orderComments    OrderComment[]
   emailVerificationCodes EmailVerificationCode[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -156,6 +163,7 @@ model Category {
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name            String
   description     String?
+  imageUrl        String?
   isActive        Boolean   @default(true)
   deletedAt       DateTime?
   sortOrder       Int       @default(0)
@@ -175,6 +183,8 @@ model Product {
   category        Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   name            String
   description     String?
+  imageUrl        String?
+  badgeText       String?
   price           Int
   currency        String      @default("RUB")
   isActive        Boolean     @default(true)
@@ -286,6 +296,7 @@ model Order {
   paymentStatus PaymentStatus @default(PENDING)
   currency      String        @default("RUB")
   deliveryAddress String
+  staffComment  String?
   deliveryLat   Float?
   deliveryLng   Float?
   paidAt        DateTime?
@@ -297,6 +308,7 @@ model Order {
   discountAmount Int         @default(0)
   finalAmount   Int
   items         OrderItem[]
+  comments      OrderComment[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -307,6 +319,20 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([tenantId, createdAt])
+}
+
+model OrderComment {
+  id        Int      @id @default(autoincrement())
+  orderId    Int
+  authorId   Int?
+  comment    String
+  createdAt  DateTime @default(now())
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([authorId])
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {

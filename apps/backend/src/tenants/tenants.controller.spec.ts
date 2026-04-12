@@ -2,57 +2,70 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
 import { UserRole } from '../common/enums/user-role.enum';
-import { CreateTenantDto } from './dto/create-tenant.dto';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
+
+function createTenantFixture(
+  overrides?: Partial<Awaited<ReturnType<TenantsService['createTenant']>>>,
+) {
+  return {
+    id: 1,
+    name: 'Flowza Cafe',
+    slug: 'flowza-cafe',
+    description: 'Кафе',
+    heroTitle: null,
+    heroSubtitle: null,
+    heroDescription: null,
+    heroImageUrl: null,
+    seoTitle: null,
+    seoDescription: null,
+    phone: null,
+    address: null,
+    timezone: 'Europe/Moscow',
+    workingHours: null,
+    deliveryFee: 0,
+    minOrderAmount: 0,
+    subscription: null,
+    isActive: true,
+    createdAt: new Date('2026-04-12T00:00:00.000Z'),
+    updatedAt: new Date('2026-04-12T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function createServiceMock() {
+  return {
+    findPublicCatalogBySlug: jest.fn<
+      ReturnType<TenantsService['findPublicCatalogBySlug']>,
+      Parameters<TenantsService['findPublicCatalogBySlug']>
+    >(),
+    findAccessibleTenantsForActor: jest.fn<
+      ReturnType<TenantsService['findAccessibleTenantsForActor']>,
+      Parameters<TenantsService['findAccessibleTenantsForActor']>
+    >(),
+    findActiveTenants: jest.fn<
+      ReturnType<TenantsService['findActiveTenants']>,
+      Parameters<TenantsService['findActiveTenants']>
+    >(),
+    createTenant: jest.fn<
+      ReturnType<TenantsService['createTenant']>,
+      Parameters<TenantsService['createTenant']>
+    >(),
+    updateTenant: jest.fn<
+      ReturnType<TenantsService['updateTenant']>,
+      Parameters<TenantsService['updateTenant']>
+    >(),
+    removeTenant: jest.fn<
+      ReturnType<TenantsService['removeTenant']>,
+      Parameters<TenantsService['removeTenant']>
+    >(),
+  };
+}
 
 describe('Контроллер организаций', () => {
   let controller: TenantsController;
-  let service: {
-    findAccessibleTenantsForActor: jest.Mock<
-      Promise<
-        Array<{
-          id: number;
-          name: string;
-          slug: string;
-          description: string | null;
-        }>
-      >,
-      [{ role: UserRole; organizationIds: number[] }]
-    >;
-    findActiveTenants: jest.Mock<
-      Promise<
-        Array<{
-          id: number;
-          name: string;
-          slug: string;
-          description: string | null;
-        }>
-      >,
-      []
-    >;
-    createTenant: jest.Mock<
-      Promise<{ id: number; name: string }>,
-      [CreateTenantDto]
-    >;
-    updateTenant: jest.Mock<
-      Promise<{ id: number; name: string }>,
-      [
-        number,
-        { role: UserRole; organizationIds: number[] },
-        UpdateTenantDto,
-      ]
-    >;
-    removeTenant: jest.Mock<Promise<{ id: number }>, [number]>;
-  };
+  let service: ReturnType<typeof createServiceMock>;
 
   beforeEach(async () => {
-    service = {
-      findAccessibleTenantsForActor: jest.fn(),
-      findActiveTenants: jest.fn(),
-      createTenant: jest.fn(),
-      updateTenant: jest.fn(),
-      removeTenant: jest.fn(),
-    };
+    service = createServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TenantsController],
@@ -89,6 +102,57 @@ describe('Контроллер организаций', () => {
     expect(service.findActiveTenants).toHaveBeenCalledTimes(1);
   });
 
+  it('возвращает публичный каталог организации по slug', async () => {
+    const catalog = {
+      tenant: {
+        id: 1,
+        name: 'Roma Pizza',
+        slug: 'roma-pizza',
+        description: 'Итальянская пицца',
+        heroTitle: 'Лучшая пицца района',
+        heroSubtitle: 'Доставка за 30 минут',
+        heroDescription: 'Свежая пицца каждый день',
+        heroImageUrl: 'https://example.com/hero.jpg',
+        seoTitle: 'Roma Pizza',
+        seoDescription: 'Пицца в Москве',
+        phone: '+79990000000',
+        address: 'Москва',
+        timezone: 'Europe/Moscow',
+        workingHours: { mon: '10:00-22:00' },
+        deliveryFee: 199,
+        minOrderAmount: 1000,
+      },
+      categories: [
+        {
+          id: 5,
+          name: 'Пицца',
+          description: 'Основное меню',
+          imageUrl: 'https://example.com/category.jpg',
+          sortOrder: 1,
+        },
+      ],
+      products: [
+        {
+          id: 7,
+          categoryId: 5,
+          name: 'Маргарита',
+          description: 'Классика',
+          imageUrl: 'https://example.com/product.jpg',
+          badgeText: 'Хит',
+          price: 520,
+          currency: 'RUB',
+        },
+      ],
+    };
+
+    service.findPublicCatalogBySlug.mockResolvedValue(catalog);
+
+    await expect(controller.getPublicCatalog('roma-pizza')).resolves.toEqual(
+      catalog,
+    );
+    expect(service.findPublicCatalogBySlug).toHaveBeenCalledWith('roma-pizza');
+  });
+
   it('возвращает доступные сотруднику организации', async () => {
     const tenants = [
       {
@@ -117,7 +181,7 @@ describe('Контроллер организаций', () => {
   });
 
   it('создает организацию', async () => {
-    const tenant = { id: 3, name: 'Flowza Cafe' };
+    const tenant = createTenantFixture({ id: 3, name: 'Flowza Cafe' });
     service.createTenant.mockResolvedValue(tenant);
 
     await expect(
@@ -132,7 +196,7 @@ describe('Контроллер организаций', () => {
   });
 
   it('редактирует организацию с учетом контекста пользователя', async () => {
-    const tenant = { id: 5, name: 'Updated Tenant' };
+    const tenant = createTenantFixture({ id: 5, name: 'Updated Tenant' });
     service.updateTenant.mockResolvedValue(tenant);
 
     await expect(
@@ -157,9 +221,11 @@ describe('Контроллер организаций', () => {
   });
 
   it('удаляет организацию', async () => {
-    service.removeTenant.mockResolvedValue({ id: 7 });
+    service.removeTenant.mockResolvedValue(createTenantFixture({ id: 7 }));
 
-    await expect(controller.removeTenant(7)).resolves.toEqual({ id: 7 });
+    await expect(controller.removeTenant(7)).resolves.toEqual(
+      createTenantFixture({ id: 7 }),
+    );
     expect(service.removeTenant).toHaveBeenCalledWith(7);
   });
 });

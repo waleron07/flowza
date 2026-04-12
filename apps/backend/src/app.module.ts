@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ProductsModule } from './products/products.module';
     TenantsModule,
     CategoriesModule,
     ProductsModule,
+    OrdersModule,
     HealthModule,
   ],
   controllers: [AppController],

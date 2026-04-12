@@ -1,27 +1,22 @@
-import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
-import { getOrganizationById, organizations } from '../data/menu-data'
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 type OrganizationStore = {
-  selectedOrganizationId: string
-  setSelectedOrganizationId: (organizationId: string) => void
-}
+  selectedOrganizationId: string;
+  setSelectedOrganizationId: (organizationId: string) => void;
+};
 
 export const useOrganizationStore = create<OrganizationStore>()(
   persist(
     (set) => ({
-      selectedOrganizationId: organizations[0]?.id ?? '',
+      selectedOrganizationId: "",
       setSelectedOrganizationId: (organizationId) => {
-        set({ selectedOrganizationId: organizationId })
+        set({ selectedOrganizationId: organizationId });
       },
     }),
     {
-      name: 'flowza.web.organization',
+      name: "flowza.web.organization",
       storage: createJSONStorage(() => window.localStorage),
     },
   ),
-)
-
-export function getSelectedOrganization(organizationId: string) {
-  return getOrganizationById(organizationId)
-}
+);

@@ -1,9 +1,10 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { AdminLayout } from '../../../layouts/AdminLayout'
-import { DashboardPage } from '../../../../pages/dashboard/DashboardPage'
-import { OrdersPage } from '../../../../pages/orders/OrdersPage'
-import { StaffPage } from '../../../../pages/staff/StaffPage'
-import { superAdminToolpad } from './toolpad'
+import { Navigate, Route, Routes } from "react-router-dom";
+import { AdminLayout } from "../../../layouts/AdminLayout";
+import { DashboardPage } from "../../../../pages/dashboard/DashboardPage";
+import { OrganizationsPage } from "../../../../pages/organizations/OrganizationsPage";
+import { OrdersPage } from "../../../../pages/orders/OrdersPage";
+import { StaffPage } from "../../../../pages/staff/StaffPage";
+import { superAdminToolpad } from "./toolpad";
 
 export function SuperAdminRouter() {
   return (
@@ -19,10 +20,11 @@ export function SuperAdminRouter() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="orders" element={<OrdersPage />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
-  )
+  );
 }

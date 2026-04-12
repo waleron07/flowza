@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { TenantAccessService } from '../tenants/tenant-access.service';
 import { TenantActor } from '../tenants/types/tenant-actor.type';
@@ -51,8 +55,11 @@ export class ProductsService {
         categoryId: dto.categoryId,
         name: dto.name,
         description: dto.description,
+        imageUrl: dto.imageUrl,
+        badgeText: dto.badgeText,
         price: dto.price,
         currency: dto.currency ?? 'RUB',
+        isActive: dto.isActive ?? true,
       },
     });
   }
@@ -105,6 +112,8 @@ export class ProductsService {
         categoryId: dto.categoryId,
         name: dto.name,
         description: dto.description,
+        imageUrl: dto.imageUrl,
+        badgeText: dto.badgeText,
         price: dto.price,
         currency: dto.currency,
         isActive: dto.isActive,

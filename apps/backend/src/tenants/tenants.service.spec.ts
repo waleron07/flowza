@@ -7,36 +7,56 @@ import { TenantAccessService } from './tenant-access.service';
 describe('Сервис организаций', () => {
   const tenantFindManyMock = jest.fn();
   const tenantCreateMock = jest.fn();
+  const tenantFindFirstMock = jest.fn();
   const tenantFindUniqueMock = jest.fn();
   const tenantUpdateMock = jest.fn();
   const tenantDeleteMock = jest.fn();
+  const categoryFindManyMock = jest.fn();
+  const productFindManyMock = jest.fn();
+  const normalizeOrganizationIdsMock = jest.fn((organizationIds?: number[]) =>
+    [...new Set(organizationIds ?? [])].sort((left, right) => left - right),
+  );
+  const assertCanManageOrganizationMock = jest.fn();
 
   const prisma = {
     tenant: {
       findMany: tenantFindManyMock,
       create: tenantCreateMock,
+      findFirst: tenantFindFirstMock,
       findUnique: tenantFindUniqueMock,
       update: tenantUpdateMock,
       delete: tenantDeleteMock,
     },
+    category: {
+      findMany: categoryFindManyMock,
+    },
+    product: {
+      findMany: productFindManyMock,
+    },
   } as unknown as PrismaService;
 
   const tenantAccessService = {
-    normalizeOrganizationIds: jest.fn((organizationIds?: number[]) =>
-      [...new Set(organizationIds ?? [])].sort((left, right) => left - right),
-    ),
-    assertCanManageOrganization: jest.fn(),
+    normalizeOrganizationIds: normalizeOrganizationIdsMock,
+    assertCanManageOrganization: assertCanManageOrganizationMock,
   } as unknown as TenantAccessService;
 
   let service: TenantsService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    tenantAccessService.normalizeOrganizationIds = jest.fn(
+    tenantFindManyMock.mockReset();
+    tenantCreateMock.mockReset();
+    tenantFindFirstMock.mockReset();
+    tenantFindUniqueMock.mockReset();
+    tenantUpdateMock.mockReset();
+    tenantDeleteMock.mockReset();
+    categoryFindManyMock.mockReset();
+    productFindManyMock.mockReset();
+    normalizeOrganizationIdsMock.mockReset();
+    normalizeOrganizationIdsMock.mockImplementation(
       (organizationIds?: number[]) =>
         [...new Set(organizationIds ?? [])].sort((left, right) => left - right),
-    ) as never;
-    tenantAccessService.assertCanManageOrganization = jest.fn() as never;
+    );
+    assertCanManageOrganizationMock.mockReset();
     service = new TenantsService(prisma, tenantAccessService);
   });
 
@@ -46,6 +66,155 @@ describe('Сервис организаций', () => {
     await expect(service.findActiveTenants()).resolves.toEqual([
       { id: 1, name: 'Roma Pizza' },
     ]);
+  });
+
+  it('возвращает публичный каталог активной организации по slug', async () => {
+    tenantFindFirstMock.mockResolvedValue({
+      id: 10,
+      name: 'Roma Pizza',
+      slug: 'roma-pizza',
+      description: 'Итальянская пицца',
+      heroTitle: 'Лучшая пицца района',
+      heroSubtitle: 'Доставка за 30 минут',
+      heroDescription: 'Свежая пицца каждый день',
+      heroImageUrl: 'https://example.com/hero.jpg',
+      seoTitle: 'Roma Pizza',
+      seoDescription: 'Пицца в Москве',
+      phone: '+79990000000',
+      address: 'Москва',
+      timezone: 'Europe/Moscow',
+      workingHours: { mon: '10:00-22:00' },
+      deliveryFee: 199,
+      minOrderAmount: 1000,
+    });
+    categoryFindManyMock.mockResolvedValue([
+      {
+        id: 5,
+        name: 'Пицца',
+        description: 'Основное меню',
+        imageUrl: 'https://example.com/category.jpg',
+        sortOrder: 1,
+      },
+    ]);
+    productFindManyMock.mockResolvedValue([
+      {
+        id: 7,
+        categoryId: 5,
+        name: 'Маргарита',
+        description: 'Классика',
+        imageUrl: 'https://example.com/product.jpg',
+        badgeText: 'Хит',
+        price: 520,
+        currency: 'RUB',
+      },
+    ]);
+
+    await expect(
+      service.findPublicCatalogBySlug('roma-pizza'),
+    ).resolves.toEqual({
+      tenant: {
+        id: 10,
+        name: 'Roma Pizza',
+        slug: 'roma-pizza',
+        description: 'Итальянская пицца',
+        heroTitle: 'Лучшая пицца района',
+        heroSubtitle: 'Доставка за 30 минут',
+        heroDescription: 'Свежая пицца каждый день',
+        heroImageUrl: 'https://example.com/hero.jpg',
+        seoTitle: 'Roma Pizza',
+        seoDescription: 'Пицца в Москве',
+        phone: '+79990000000',
+        address: 'Москва',
+        timezone: 'Europe/Moscow',
+        workingHours: { mon: '10:00-22:00' },
+        deliveryFee: 199,
+        minOrderAmount: 1000,
+      },
+      categories: [
+        {
+          id: 5,
+          name: 'Пицца',
+          description: 'Основное меню',
+          imageUrl: 'https://example.com/category.jpg',
+          sortOrder: 1,
+        },
+      ],
+      products: [
+        {
+          id: 7,
+          categoryId: 5,
+          name: 'Маргарита',
+          description: 'Классика',
+          imageUrl: 'https://example.com/product.jpg',
+          badgeText: 'Хит',
+          price: 520,
+          currency: 'RUB',
+        },
+      ],
+    });
+    expect(tenantFindFirstMock).toHaveBeenCalledWith({
+      where: { slug: 'roma-pizza', isActive: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        heroTitle: true,
+        heroSubtitle: true,
+        heroDescription: true,
+        heroImageUrl: true,
+        seoTitle: true,
+        seoDescription: true,
+        phone: true,
+        address: true,
+        timezone: true,
+        workingHours: true,
+        deliveryFee: true,
+        minOrderAmount: true,
+      },
+    });
+    expect(categoryFindManyMock).toHaveBeenCalledWith({
+      where: {
+        tenantId: 10,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        imageUrl: true,
+        sortOrder: true,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    expect(productFindManyMock).toHaveBeenCalledWith({
+      where: {
+        tenantId: 10,
+        isActive: true,
+        category: {
+          isActive: true,
+        },
+      },
+      select: {
+        id: true,
+        categoryId: true,
+        name: true,
+        description: true,
+        imageUrl: true,
+        badgeText: true,
+        price: true,
+        currency: true,
+      },
+      orderBy: [{ name: 'asc' }],
+    });
+  });
+
+  it('возвращает ошибку для каталога несуществующей организации', async () => {
+    tenantFindFirstMock.mockResolvedValue(null);
+
+    await expect(
+      service.findPublicCatalogBySlug('missing-tenant'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('создает организацию', async () => {
@@ -62,12 +231,24 @@ describe('Сервис организаций', () => {
         minOrderAmount: 1000,
       }),
     ).resolves.toEqual({ id: 1, name: 'Roma Pizza' });
-    expect(tenantCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    const createTenantMockState = tenantCreateMock.mock as {
+      lastCall?: [
+        {
+          data?: {
+            timezone?: string;
+            deliveryFee?: number;
+            minOrderAmount?: number;
+          };
+        },
+      ];
+    };
+    const createTenantArg = createTenantMockState.lastCall?.[0];
+    expect(createTenantArg).toMatchObject({
+      data: {
         timezone: 'Europe/Moscow',
         deliveryFee: 199,
         minOrderAmount: 1000,
-      }),
+      },
     });
   });
 
@@ -104,16 +285,18 @@ describe('Сервис организаций', () => {
         { name: 'Updated' },
       ),
     ).resolves.toEqual({ id: 10, name: 'Updated' });
-    expect(tenantAccessService.assertCanManageOrganization).toHaveBeenCalledWith(
+    expect(assertCanManageOrganizationMock).toHaveBeenCalledWith(
       { role: UserRole.ADMIN, organizationIds: [10, 20] },
       10,
     );
   });
 
   it('запрещает admin редактировать недоступную организацию', async () => {
-    tenantAccessService.assertCanManageOrganization = jest.fn(() => {
-      throw new ForbiddenException('Недостаточно прав для редактирования этой организации');
-    }) as never;
+    assertCanManageOrganizationMock.mockImplementation(() => {
+      throw new ForbiddenException(
+        'Недостаточно прав для редактирования этой организации',
+      );
+    });
 
     await expect(
       service.updateTenant(
@@ -172,13 +355,26 @@ describe('Сервис организаций', () => {
         },
       ),
     ).resolves.toEqual({ id: 10, isActive: false });
-    expect(tenantUpdateMock).toHaveBeenCalledWith({
+    const updateTenantMockState = tenantUpdateMock.mock as {
+      lastCall?: [
+        {
+          where?: { id?: number };
+          data?: {
+            timezone?: string;
+            deliveryFee?: number;
+            isActive?: boolean;
+          };
+        },
+      ];
+    };
+    const updateTenantArg = updateTenantMockState.lastCall?.[0];
+    expect(updateTenantArg).toMatchObject({
       where: { id: 10 },
-      data: expect.objectContaining({
+      data: {
         timezone: 'Europe/Moscow',
         deliveryFee: 250,
         isActive: false,
-      }),
+      },
     });
   });
 

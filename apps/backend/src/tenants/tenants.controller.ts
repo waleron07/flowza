@@ -23,6 +23,11 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
+  @Get(':slug/catalog')
+  getPublicCatalog(@Param('slug') slug: string) {
+    return this.tenantsService.findPublicCatalogBySlug(slug);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(
     UserRole.SUPER_ADMIN,
@@ -38,9 +43,37 @@ export class TenantsController {
     });
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+    UserRole.OPERATOR,
+  )
+  @Get('manageable')
+  getManageableTenants(@Req() req: { user: JwtPayload }) {
+    return this.tenantsService.findManageableTenantsForActor({
+      role: req.user.role,
+      organizationIds: req.user.organizationIds,
+    });
+  }
+
   @Get()
   getActiveTenants() {
     return this.tenantsService.findActiveTenants();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
+  @Get(':tenantId/management')
+  getManagementView(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Req() req: { user: JwtPayload },
+  ) {
+    return this.tenantsService.findManagementViewByTenantId(tenantId, {
+      role: req.user.role,
+      organizationIds: req.user.organizationIds,
+    });
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

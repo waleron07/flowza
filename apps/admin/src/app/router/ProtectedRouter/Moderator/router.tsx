@@ -1,8 +1,9 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { AdminLayout } from '../../../layouts/AdminLayout'
-import { DashboardPage } from '../../../../pages/dashboard/DashboardPage'
-import { OrdersPage } from '../../../../pages/orders/OrdersPage'
-import { moderatorToolpad } from './toolpad'
+import { Navigate, Route, Routes } from "react-router-dom";
+import { AdminLayout } from "../../../layouts/AdminLayout";
+import { DashboardPage } from "../../../../pages/dashboard/DashboardPage";
+import { OrganizationsPage } from "../../../../pages/organizations/OrganizationsPage";
+import { OrdersPage } from "../../../../pages/orders/OrdersPage";
+import { moderatorToolpad } from "./toolpad";
 
 export function ModeratorRouter() {
   return (
@@ -18,10 +19,11 @@ export function ModeratorRouter() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="staff" element={<Navigate replace to="/" />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
-  )
+  );
 }

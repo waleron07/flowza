@@ -1,25 +1,43 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateProductDto {
   @Type(() => Number)
   @IsInt()
-  tenantId: number;
+  tenantId!: number;
 
   @Type(() => Number)
   @IsInt()
-  categoryId: number;
+  categoryId!: number;
 
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsOptional()
   description?: string;
 
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  badgeText?: string;
+
   @Type(() => Number)
   @IsInt()
-  price: number;
+  price!: number;
 
   @IsOptional()
   currency?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

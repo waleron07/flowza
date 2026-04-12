@@ -29,7 +29,9 @@ export class CategoriesService {
         tenantId: dto.tenantId,
         name: dto.name,
         description: dto.description,
+        imageUrl: dto.imageUrl,
         sortOrder: dto.sortOrder ?? 0,
+        isActive: dto.isActive ?? true,
       },
     });
   }
@@ -54,6 +56,7 @@ export class CategoriesService {
       data: {
         name: dto.name,
         description: dto.description,
+        imageUrl: dto.imageUrl,
         sortOrder: dto.sortOrder,
         isActive: dto.isActive,
       },

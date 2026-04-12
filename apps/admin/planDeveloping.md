@@ -38,12 +38,16 @@
 - доступ в админку только через `login` сотрудников (staff);
 - создание staff-аккаунтов выполняется только авторизованными ролями через `POST /users/staff`, а не через экран регистрации.
 
-Публичная регистрация клиента, CAPTCHA (**Cloudflare Turnstile**), код подтверждения email и настройка **SMTP** относятся к **`apps/web` + `apps/backend`** и в админке не дублируются. Пока на окружении не настроена исходящая почта, сценарий «письмо с кодом» для клиента остаётся незавершённым (см. `apps/backend/planDeveloping.md`).
+Публичная регистрация клиента, CAPTCHA (**Cloudflare Turnstile**), код подтверждения email и настройка **SMTP** относятся к **`apps/web` + `apps/backend`** и в админке не дублируются. Локальный SMTP-сценарий для клиентской регистрации уже подтвержден на backend, но для `apps/admin` этот flow по-прежнему не используется напрямую (см. `apps/backend/planDeveloping.md`).
 
-### Синхронизация с backend (2026-04-04)
+### Синхронизация с backend (2026-04-12)
 
 - Клиентский контракт регистрации/resend может возвращать **`emailSentViaSmtp`** — в `apps/admin` не используется; актуально для веб-магазина.
 - Auth staff: без изменений (`login` / `identifier`, `GET /auth/me`, проверка роли).
+- Клиентская email-верификация и SMTP на backend для локальной разработки уже работают; админка остаётся сфокусированной на staff-auth и tenant/staff CRUD.
+- Для admin-management слоя уже доступны и используются: `GET /tenants/manageable` и `GET /tenants/:tenantId/management`.
+- Backend уже отдает organization showcase-поля, категории и карточки товаров в management view, поэтому admin может редактировать не только базовые реквизиты организации, но и главную страницу/каталог.
+- Базовый order API на backend уже существует (`POST /orders`, `GET /orders/my`), но staff-экран управления заказами в `apps/admin` пока остается следующим этапом.
 
 На backend уже реализовано и доступно для admin части:
 
@@ -53,6 +57,8 @@
 - `POST /users/staff`
 - `GET /tenants`
 - `GET /tenants/accessible`
+- `GET /tenants/manageable`
+- `GET /tenants/:tenantId/management`
 - `POST /tenants`
 - `PATCH /tenants/:tenantId`
 - `DELETE /tenants/:tenantId`
@@ -64,6 +70,8 @@
 - `POST /products`
 - `PATCH /products/:productId`
 - `DELETE /products/:productId`
+- `POST /orders`
+- `GET /orders/my`
 
 Также уже есть:
 
@@ -318,13 +326,19 @@ src/
 
 ### Что пока не входит в первый admin MVP
 
-- управление продуктами;
-- управление категориями;
-- управление заказами;
+- управление заказами и операторская очередь;
 - dashboard-аналитика;
-- tenant-настройки;
 - audit log;
 - управление правами через сложный UI.
+
+### Синхронизация с реализацией (2026-04-12)
+
+- Auth и role-based router уже реализованы: `Guest/SuperAdmin/Admin/Moderator/Operator`, `toolpad`-навигация и UX-ограничения по ролям работают.
+- Staff create-flow уже подключен к реальному backend и работает через `organizationIds`, но список/редактирование staff еще остаются следующим шагом.
+- Организации в admin уже реализованы как рабочий модуль: профиль организации, главная страница, SEO-поля, категории и карточки товаров.
+- В organizations UI уже есть preview storefront, quick activate/deactivate, подтверждения действий и search/filter по категориям и товарам.
+- Categories/products management больше не является “будущим направлением” для admin MVP: базовый CRUD-слой уже собран поверх реального backend.
+- Основной крупный незакрытый прикладной блок для admin сейчас — заказы и operator workflows.
 
 ## 7. Этапы разработки admin
 
@@ -623,16 +637,13 @@ Admin frontend готов к разработке боевых фич.
 
 ## 10. Следующие шаги после текущего backend статуса
 
-С учетом того, что backend уже продвинулся по auth и staff management, оптимальный порядок разработки admin сейчас такой:
+С учетом текущего статуса backend и уже реализованных admin-экранов, оптимальный порядок дальнейшей разработки такой:
 
-1. profile page;
-2. `DELETE /auth/me`;
-3. staff create screen;
-4. role-based UI visibility в остальных прикладных разделах;
-5. переключение текущей организации и multi-tenant контекст staff-пользователя;
-6. screens управления организациями для `superAdmin` и `admin` поверх уже готовых backend-endpoint;
-7. categories/products screens для `admin` и `moderator` поверх уже готовых backend-endpoint;
-8. orders management screen для `operator`, `admin`, `superAdmin`, когда будет реализован backend-модуль заказов и HTTP-контракты.
+1. завершить staff management: список сотрудников, обновление после создания и дальнейший edit/remove сценарий;
+2. при необходимости дожать profile/self-delete UX, если он еще не закрыт полностью в UI;
+3. собрать orders management screen для `operator`, `admin`, `superAdmin` поверх существующего и следующего backend order API;
+4. добавить UI смены статусов и комментариев к заказам после выхода соответствующих backend-контрактов;
+5. затем переходить к dashboard-аналитике, audit log и более сложному permission UI.
 
 ## 11. Итог
 
@@ -646,8 +657,11 @@ Admin frontend нужно строить уже не как абстрактну
 - `POST /users/staff`
 - `GET /tenants`
 - `GET /tenants/accessible`
+- `GET /tenants/manageable`
+- `GET /tenants/:tenantId/management`
 - CRUD категорий
 - CRUD продуктов
+- screens управления организациями и storefront preview
 
 И вокруг router-архитектуры, где staff-роли получают раздельные ветки интерфейса:
 
