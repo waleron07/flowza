@@ -20,7 +20,7 @@ import { TenantActor } from '../tenants/types/tenant-actor.type';
 import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { OrdersService } from './orders.service';
+import { OrderAction, OrdersService } from './orders.service';
 
 class UpdateOrderStatusDto {
   @IsEnum(OrderStatus)
@@ -33,12 +33,26 @@ class UpdateOrderCommentDto {
   comment?: string;
 }
 
+class UpdateOrderPaymentStatusDto {
+  @IsEnum(PaymentStatus)
+  paymentStatus!: PaymentStatus;
+}
+
+class UpdateOrderActionDto {
+  @IsEnum(OrderAction)
+  action!: OrderAction;
+}
+
 type OrderQueueQuery = {
   tenantId?: string;
   status?: string;
   paymentMethod?: string;
   paymentStatus?: string;
   search?: string;
+};
+
+type OrderTimelineQuery = {
+  type?: string;
 };
 
 @Controller('orders')
@@ -110,6 +124,23 @@ export class OrdersController {
     const trimmedSearch = search?.trim();
 
     return trimmedSearch ? trimmedSearch : undefined;
+  }
+
+  private parseTimelineTypeQuery(type?: string) {
+    if (type === undefined) {
+      return 'ALL' as const;
+    }
+
+    const normalizedType = type.toUpperCase();
+    if (
+      normalizedType !== 'ALL' &&
+      normalizedType !== 'EVENT' &&
+      normalizedType !== 'COMMENT'
+    ) {
+      throw new BadRequestException('type must be one of: ALL, EVENT, COMMENT');
+    }
+
+    return normalizedType;
   }
 
   @Post()
@@ -208,6 +239,31 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  @Get(':orderId/timeline')
+  findTimeline(
+    @Req() req: { user: JwtPayload },
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Query() query: OrderTimelineQuery,
+  ) {
+    const actor: TenantActor = {
+      role: req.user.role,
+      organizationIds: req.user.organizationIds,
+    };
+
+    return this.ordersService.findTimeline(
+      actor,
+      orderId,
+      this.parseTimelineTypeQuery(query.type),
+    );
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+    UserRole.OPERATOR,
+  )
   @Patch(':orderId/status')
   updateStatus(
     @Req() req: { user: JwtPayload },
@@ -219,7 +275,12 @@ export class OrdersController {
       organizationIds: req.user.organizationIds,
     };
 
-    return this.ordersService.updateStatus(actor, orderId, dto.status);
+    return this.ordersService.updateStatus(
+      actor,
+      orderId,
+      dto.status,
+      req.user.userId,
+    );
   }
 
   @UseGuards(RolesGuard)
@@ -245,6 +306,58 @@ export class OrdersController {
       req.user.userId,
       orderId,
       dto.comment,
+    );
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+    UserRole.OPERATOR,
+  )
+  @Patch(':orderId/payment-status')
+  updatePaymentStatus(
+    @Req() req: { user: JwtPayload },
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Body() dto: UpdateOrderPaymentStatusDto,
+  ) {
+    const actor: TenantActor = {
+      role: req.user.role,
+      organizationIds: req.user.organizationIds,
+    };
+
+    return this.ordersService.updatePaymentStatus(
+      actor,
+      orderId,
+      dto.paymentStatus,
+      req.user.userId,
+    );
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MODERATOR,
+    UserRole.OPERATOR,
+  )
+  @Patch(':orderId/action')
+  applyAction(
+    @Req() req: { user: JwtPayload },
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Body() dto: UpdateOrderActionDto,
+  ) {
+    const actor: TenantActor = {
+      role: req.user.role,
+      organizationIds: req.user.organizationIds,
+    };
+
+    return this.ordersService.applyAction(
+      actor,
+      orderId,
+      dto.action,
+      req.user.userId,
     );
   }
 }

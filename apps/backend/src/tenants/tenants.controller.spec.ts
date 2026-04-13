@@ -41,6 +41,14 @@ function createServiceMock() {
       ReturnType<TenantsService['findAccessibleTenantsForActor']>,
       Parameters<TenantsService['findAccessibleTenantsForActor']>
     >(),
+    findManageableTenantsForActor: jest.fn<
+      ReturnType<TenantsService['findManageableTenantsForActor']>,
+      Parameters<TenantsService['findManageableTenantsForActor']>
+    >(),
+    findManagementViewByTenantId: jest.fn<
+      ReturnType<TenantsService['findManagementViewByTenantId']>,
+      Parameters<TenantsService['findManagementViewByTenantId']>
+    >(),
     findActiveTenants: jest.fn<
       ReturnType<TenantsService['findActiveTenants']>,
       Parameters<TenantsService['findActiveTenants']>
@@ -176,6 +184,77 @@ describe('Контроллер организаций', () => {
     ).resolves.toEqual(tenants);
     expect(service.findAccessibleTenantsForActor).toHaveBeenCalledWith({
       role: UserRole.ADMIN,
+      organizationIds: [5, 6],
+    });
+  });
+
+  it('возвращает управляемые сотруднику организации', async () => {
+    const tenants = [
+      {
+        id: 5,
+        name: 'Flowza Cafe',
+        slug: 'flowza-cafe',
+        description: 'Кафе',
+        isActive: true,
+      },
+    ];
+    service.findManageableTenantsForActor.mockResolvedValue(tenants);
+
+    await expect(
+      controller.getManageableTenants({
+        user: {
+          userId: 10,
+          role: UserRole.ADMIN,
+          primaryTenantId: 5,
+          organizationIds: [5, 6],
+        },
+      }),
+    ).resolves.toEqual(tenants);
+    expect(service.findManageableTenantsForActor).toHaveBeenCalledWith({
+      role: UserRole.ADMIN,
+      organizationIds: [5, 6],
+    });
+  });
+
+  it('возвращает management-view организации', async () => {
+    const managementView = {
+      tenant: {
+        id: 5,
+        name: 'Flowza Cafe',
+        slug: 'flowza-cafe',
+        description: 'Кафе',
+        heroTitle: null,
+        heroSubtitle: null,
+        heroDescription: null,
+        heroImageUrl: null,
+        seoTitle: null,
+        seoDescription: null,
+        isActive: true,
+        phone: null,
+        address: null,
+        timezone: 'Europe/Moscow',
+        workingHours: null,
+        deliveryFee: 199,
+        minOrderAmount: 1000,
+        subscription: null,
+      },
+      categories: [],
+      products: [],
+    };
+    service.findManagementViewByTenantId.mockResolvedValue(managementView);
+
+    await expect(
+      controller.getManagementView(5, {
+        user: {
+          userId: 10,
+          role: UserRole.MODERATOR,
+          primaryTenantId: 5,
+          organizationIds: [5, 6],
+        },
+      }),
+    ).resolves.toEqual(managementView);
+    expect(service.findManagementViewByTenantId).toHaveBeenCalledWith(5, {
+      role: UserRole.MODERATOR,
       organizationIds: [5, 6],
     });
   });

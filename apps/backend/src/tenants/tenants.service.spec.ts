@@ -274,6 +274,110 @@ describe('Сервис организаций', () => {
     ).resolves.toEqual([{ id: 1, name: 'Roma Pizza' }]);
   });
 
+  it('возвращает управляемые организации для admin', async () => {
+    tenantFindManyMock.mockResolvedValue([{ id: 10, name: 'Roma Pizza' }]);
+
+    await expect(
+      service.findManageableTenantsForActor({
+        role: UserRole.ADMIN,
+        organizationIds: [20, 10],
+      }),
+    ).resolves.toEqual([{ id: 10, name: 'Roma Pizza' }]);
+    expect(tenantFindManyMock).toHaveBeenCalledWith({
+      where: {
+        id: { in: [10, 20] },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+  });
+
+  it('запрещает moderator получать список управляемых организаций', async () => {
+    await expect(
+      service.findManageableTenantsForActor({
+        role: UserRole.MODERATOR,
+        organizationIds: [10],
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tenantFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it('возвращает management-view для доступной организации', async () => {
+    tenantFindUniqueMock.mockResolvedValue({
+      id: 10,
+      name: 'Roma Pizza',
+      slug: 'roma-pizza',
+      description: 'Итальянская пицца',
+      heroTitle: null,
+      heroSubtitle: null,
+      heroDescription: null,
+      heroImageUrl: null,
+      seoTitle: null,
+      seoDescription: null,
+      isActive: true,
+      phone: null,
+      address: null,
+      timezone: 'Europe/Moscow',
+      workingHours: null,
+      deliveryFee: 199,
+      minOrderAmount: 1000,
+      subscription: null,
+    });
+    categoryFindManyMock.mockResolvedValue([{ id: 1, name: 'Пицца' }]);
+    productFindManyMock.mockResolvedValue([{ id: 2, name: 'Маргарита' }]);
+
+    await expect(
+      service.findManagementViewByTenantId(10, {
+        role: UserRole.MODERATOR,
+        organizationIds: [10],
+      }),
+    ).resolves.toEqual({
+      tenant: {
+        id: 10,
+        name: 'Roma Pizza',
+        slug: 'roma-pizza',
+        description: 'Итальянская пицца',
+        heroTitle: null,
+        heroSubtitle: null,
+        heroDescription: null,
+        heroImageUrl: null,
+        seoTitle: null,
+        seoDescription: null,
+        isActive: true,
+        phone: null,
+        address: null,
+        timezone: 'Europe/Moscow',
+        workingHours: null,
+        deliveryFee: 199,
+        minOrderAmount: 1000,
+        subscription: null,
+      },
+      categories: [{ id: 1, name: 'Пицца' }],
+      products: [{ id: 2, name: 'Маргарита' }],
+    });
+    expect(assertCanManageOrganizationMock).toHaveBeenCalledWith(
+      { role: UserRole.MODERATOR, organizationIds: [10] },
+      10,
+    );
+  });
+
+  it('возвращает ошибку при запросе management-view несуществующей организации', async () => {
+    tenantFindUniqueMock.mockResolvedValue(null);
+
+    await expect(
+      service.findManagementViewByTenantId(10, {
+        role: UserRole.SUPER_ADMIN,
+        organizationIds: [],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('разрешает admin редактировать доступную организацию', async () => {
     tenantFindUniqueMock.mockResolvedValue({ id: 10 });
     tenantUpdateMock.mockResolvedValue({ id: 10, name: 'Updated' });

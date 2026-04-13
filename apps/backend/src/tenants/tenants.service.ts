@@ -32,6 +32,12 @@ export class TenantsService {
   }
 
   async findManageableTenantsForActor(actor: TenantActor) {
+    if (actor.role !== UserRole.SUPER_ADMIN && actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Недостаточно прав для управления организациями',
+      );
+    }
+
     if (actor.role === UserRole.SUPER_ADMIN) {
       return this.prisma.tenant.findMany({
         select: {

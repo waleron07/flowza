@@ -3,7 +3,7 @@ import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { TenantAccessService } from '../tenants/tenant-access.service';
-import { OrdersService } from './orders.service';
+import { OrderAction, OrdersService } from './orders.service';
 
 describe('Сервис заказов', () => {
   const tenantFindFirstMock = jest.fn();
@@ -212,6 +212,67 @@ describe('Сервис заказов', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('не создает заказ из товаров разных организаций', async () => {
+    tenantFindFirstMock.mockResolvedValue({
+      id: 10,
+      name: 'Flowza Cafe',
+      slug: 'flowza-cafe',
+      deliveryFee: 199,
+      minOrderAmount: 500,
+    });
+    productFindManyMock.mockResolvedValue([
+      { id: 7, name: 'Маргарита', price: 520, currency: 'RUB' },
+    ]);
+
+    await expect(
+      service.create(5, {
+        tenantId: 10,
+        deliveryAddress: 'Москва',
+        paymentMethod: PaymentMethod.CARD,
+        items: [
+          { productId: 7, quantity: 1 },
+          { productId: 9007, quantity: 1 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(productFindManyMock).toHaveBeenCalledWith({
+      where: {
+        id: { in: [7, 9007] },
+        tenantId: 10,
+        isActive: true,
+        category: {
+          isActive: true,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        currency: true,
+      },
+    });
+  });
+
+  it('не создает заказ с категорией или продуктом чужого tenant', async () => {
+    tenantFindFirstMock.mockResolvedValue({
+      id: 10,
+      name: 'Flowza Cafe',
+      slug: 'flowza-cafe',
+      deliveryFee: 199,
+      minOrderAmount: 500,
+    });
+    productFindManyMock.mockResolvedValue([]);
+
+    await expect(
+      service.create(5, {
+        tenantId: 10,
+        deliveryAddress: 'Москва',
+        paymentMethod: PaymentMethod.CARD,
+        items: [{ productId: 8001, quantity: 1 }],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('возвращает заказы пользователя', async () => {
     orderFindManyMock.mockResolvedValue([
       {
@@ -279,6 +340,63 @@ describe('Сервис заказов', () => {
     >;
     expect(findMineByTenantCall[0]?.[0]).toMatchObject({
       where: { userId: 5, tenantId: 10 },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+  });
+
+  it('возвращает историю пользователя из нескольких организаций без глобальной привязки к одному tenant', async () => {
+    orderFindManyMock.mockResolvedValue([
+      {
+        id: 25,
+        orderNumber: 'FD-2026-000025',
+        tenantId: 10,
+        status: 'NEW',
+        paymentMethod: 'CASH',
+        paymentStatus: 'PENDING',
+        currency: 'RUB',
+        deliveryAddress: 'Москва',
+        subtotal: 1170,
+        deliveryFee: 199,
+        discountAmount: 0,
+        finalAmount: 1369,
+        createdAt: new Date('2026-04-12T09:00:00.000Z'),
+        tenant: { id: 10, name: 'Flowza Cafe', slug: 'flowza-cafe' },
+        items: [],
+      },
+      {
+        id: 26,
+        orderNumber: 'FD-2026-000026',
+        tenantId: 11,
+        status: 'CONFIRMED',
+        paymentMethod: 'CARD',
+        paymentStatus: 'PENDING',
+        currency: 'RUB',
+        deliveryAddress: 'Химки',
+        subtotal: 800,
+        deliveryFee: 150,
+        discountAmount: 0,
+        finalAmount: 950,
+        createdAt: new Date('2026-04-12T10:00:00.000Z'),
+        tenant: { id: 11, name: 'Another Cafe', slug: 'another-cafe' },
+        items: [],
+      },
+    ]);
+
+    await expect(service.findMine(5)).resolves.toEqual([
+      expect.objectContaining({ tenantId: 10, tenantSlug: 'flowza-cafe' }),
+      expect.objectContaining({ tenantId: 11, tenantSlug: 'another-cafe' }),
+    ]);
+    const findMineCall = orderFindManyMock.mock.calls as Array<
+      [
+        {
+          where: { userId: number; tenantId?: number };
+          select: object;
+          orderBy: Array<{ createdAt: 'desc' }>;
+        },
+      ]
+    >;
+    expect(findMineCall[0]?.[0]).toMatchObject({
+      where: { userId: 5 },
       orderBy: [{ createdAt: 'desc' }],
     });
   });
@@ -515,6 +633,7 @@ describe('Сервис заказов', () => {
         },
         30,
         OrderStatus.CONFIRMED,
+        11,
       ),
     ).resolves.toEqual(
       expect.objectContaining({ status: OrderStatus.CONFIRMED }),
@@ -536,6 +655,12 @@ describe('Сервис заказов', () => {
             deliveredAt?: Date;
             cancelledAt?: Date;
             staffComment?: string | null;
+            comments?: {
+              create: {
+                authorId?: number;
+                comment: string;
+              };
+            };
           };
           select: object;
         },
@@ -545,6 +670,12 @@ describe('Сервис заказов', () => {
       where: { id: 30 },
       data: {
         status: OrderStatus.CONFIRMED,
+        comments: {
+          create: {
+            authorId: 11,
+            comment: 'Статус изменен: NEW -> CONFIRMED',
+          },
+        },
       },
     });
     expect(updateStatusCall[0]?.[0].data.confirmedAt).toBeInstanceOf(Date);
@@ -614,6 +745,54 @@ describe('Сервис заказов', () => {
       },
       orderBy: [{ createdAt: 'asc' }],
     });
+  });
+
+  it('возвращает таймлайн заказа с фильтрацией только событий', async () => {
+    orderFindUniqueMock.mockResolvedValue({
+      id: 30,
+      tenantId: 10,
+    });
+    orderCommentFindManyMock.mockResolvedValue([
+      {
+        id: 1,
+        comment: 'Статус изменен: NEW -> CONFIRMED',
+        createdAt: new Date('2026-04-12T10:05:00.000Z'),
+        author: {
+          id: 11,
+          login: 'operator.flowza',
+          email: 'operator@flowza.dev',
+          role: UserRole.OPERATOR,
+        },
+      },
+      {
+        id: 2,
+        comment: 'Позвонить клиенту перед отправкой',
+        createdAt: new Date('2026-04-12T10:06:00.000Z'),
+        author: {
+          id: 11,
+          login: 'operator.flowza',
+          email: 'operator@flowza.dev',
+          role: UserRole.OPERATOR,
+        },
+      },
+    ]);
+
+    await expect(
+      service.findTimeline(
+        {
+          role: UserRole.ADMIN,
+          organizationIds: [10],
+        },
+        30,
+        'EVENT',
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 1,
+        type: 'EVENT',
+        message: 'Статус изменен: NEW -> CONFIRMED',
+      }),
+    ]);
   });
 
   it('запрещает недопустимый переход статуса заказа', async () => {
@@ -762,5 +941,151 @@ describe('Сервис заказов', () => {
         '   ',
       ),
     ).resolves.toEqual(expect.objectContaining({ staffComment: null }));
+  });
+
+  it('обновляет статус оплаты заказа по допустимому сценарию', async () => {
+    orderFindUniqueMock.mockResolvedValueOnce({
+      id: 31,
+      tenantId: 10,
+      paymentStatus: PaymentStatus.PENDING,
+    });
+    orderUpdateMock.mockResolvedValue({
+      id: 31,
+      orderNumber: 'FD-2026-000031',
+      tenantId: 10,
+      status: 'CONFIRMED',
+      paymentMethod: 'CARD',
+      paymentStatus: 'PAID',
+      currency: 'RUB',
+      deliveryAddress: 'Москва',
+      staffComment: null,
+      subtotal: 1300,
+      deliveryFee: 199,
+      discountAmount: 0,
+      finalAmount: 1499,
+      createdAt: new Date('2026-04-12T11:00:00.000Z'),
+      tenant: { id: 10, name: 'Flowza Cafe', slug: 'flowza-cafe' },
+      items: [],
+    });
+
+    await expect(
+      service.updatePaymentStatus(
+        {
+          role: UserRole.OPERATOR,
+          organizationIds: [10],
+        },
+        31,
+        PaymentStatus.PAID,
+        11,
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({ paymentStatus: PaymentStatus.PAID }),
+    );
+    expect(assertCanManageOrganizationMock).toHaveBeenCalledWith(
+      {
+        role: UserRole.OPERATOR,
+        organizationIds: [10],
+      },
+      10,
+    );
+    const updatePaymentStatusCall = orderUpdateMock.mock.calls as Array<
+      [
+        {
+          where: { id: number };
+          data: {
+            paymentStatus?: PaymentStatus;
+            paidAt?: Date;
+            comments?: {
+              create: {
+                authorId?: number;
+                comment: string;
+              };
+            };
+          };
+          select: object;
+        },
+      ]
+    >;
+    expect(updatePaymentStatusCall[0]?.[0]).toMatchObject({
+      where: { id: 31 },
+      data: {
+        paymentStatus: PaymentStatus.PAID,
+        comments: {
+          create: {
+            authorId: 11,
+            comment: 'Статус оплаты изменен: PENDING -> PAID',
+          },
+        },
+      },
+    });
+    expect(updatePaymentStatusCall[0]?.[0].data.paidAt).toBeInstanceOf(Date);
+  });
+
+  it('запрещает недопустимый переход статуса оплаты заказа', async () => {
+    orderFindUniqueMock.mockResolvedValue({
+      id: 31,
+      tenantId: 10,
+      paymentStatus: PaymentStatus.PAID,
+    });
+
+    await expect(
+      service.updatePaymentStatus(
+        {
+          role: UserRole.ADMIN,
+          organizationIds: [10],
+        },
+        31,
+        PaymentStatus.FAILED,
+        11,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('выполняет операционное действие по заказу через маппинг статуса', async () => {
+    const updateStatusSpy = jest
+      .spyOn(service, 'updateStatus')
+      .mockResolvedValueOnce({
+        id: 35,
+        orderNumber: 'FD-2026-000035',
+        tenantId: 10,
+        tenantName: 'Flowza Cafe',
+        tenantSlug: 'flowza-cafe',
+        status: OrderStatus.COOKING,
+        paymentMethod: PaymentMethod.CARD,
+        paymentStatus: PaymentStatus.PENDING,
+        currency: 'RUB',
+        deliveryAddress: 'Москва',
+        staffComment: null,
+        subtotal: 1000,
+        deliveryFee: 199,
+        discountAmount: 0,
+        finalAmount: 1199,
+        createdAt: new Date('2026-04-12T10:00:00.000Z'),
+        items: [],
+      });
+
+    await expect(
+      service.applyAction(
+        {
+          role: UserRole.OPERATOR,
+          organizationIds: [10],
+        },
+        35,
+        OrderAction.START_COOKING,
+        11,
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({ status: OrderStatus.COOKING }),
+    );
+
+    expect(updateStatusSpy).toHaveBeenCalledWith(
+      {
+        role: UserRole.OPERATOR,
+        organizationIds: [10],
+      },
+      35,
+      OrderStatus.COOKING,
+      11,
+    );
   });
 });

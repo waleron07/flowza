@@ -44,12 +44,7 @@ export class TenantsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.ADMIN,
-    UserRole.MODERATOR,
-    UserRole.OPERATOR,
-  )
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @Get('manageable')
   getManageableTenants(@Req() req: { user: JwtPayload }) {
     return this.tenantsService.findManageableTenantsForActor({

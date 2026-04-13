@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { OrdersController } from './orders.controller';
-import { OrdersService } from './orders.service';
+import { OrderAction, OrdersService } from './orders.service';
 
 function createServiceMock() {
   return {
@@ -25,6 +25,10 @@ function createServiceMock() {
       ReturnType<OrdersService['findComments']>,
       Parameters<OrdersService['findComments']>
     >(),
+    findTimeline: jest.fn<
+      ReturnType<OrdersService['findTimeline']>,
+      Parameters<OrdersService['findTimeline']>
+    >(),
     updateStatus: jest.fn<
       ReturnType<OrdersService['updateStatus']>,
       Parameters<OrdersService['updateStatus']>
@@ -32,6 +36,14 @@ function createServiceMock() {
     updateComment: jest.fn<
       ReturnType<OrdersService['updateComment']>,
       Parameters<OrdersService['updateComment']>
+    >(),
+    updatePaymentStatus: jest.fn<
+      ReturnType<OrdersService['updatePaymentStatus']>,
+      Parameters<OrdersService['updatePaymentStatus']>
+    >(),
+    applyAction: jest.fn<
+      ReturnType<OrdersService['applyAction']>,
+      Parameters<OrdersService['applyAction']>
     >(),
   };
 }
@@ -251,6 +263,7 @@ describe('Контроллер заказов', () => {
       },
       30,
       OrderStatus.CONFIRMED,
+      11,
     );
   });
 
@@ -292,6 +305,50 @@ describe('Контроллер заказов', () => {
         organizationIds: [10, 12],
       },
       30,
+    );
+  });
+
+  it('возвращает таймлайн заказа для staff-пользователя', async () => {
+    service.findTimeline.mockResolvedValue([
+      {
+        id: 1,
+        type: 'EVENT',
+        message: 'Статус изменен: NEW -> CONFIRMED',
+        createdAt: new Date('2026-04-12T10:05:00.000Z'),
+        author: {
+          id: 11,
+          login: 'operator.flowza',
+          email: 'operator@flowza.dev',
+          role: 'operator',
+        },
+      },
+    ]);
+
+    await expect(
+      controller.findTimeline(
+        {
+          user: {
+            userId: 11,
+            primaryTenantId: 10,
+            organizationIds: [10, 12],
+            role: 'operator' as never,
+          },
+        },
+        30,
+        { type: 'event' },
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        type: 'EVENT',
+      }),
+    ]);
+    expect(service.findTimeline).toHaveBeenCalledWith(
+      {
+        role: 'operator',
+        organizationIds: [10, 12],
+      },
+      30,
+      'EVENT',
     );
   });
 
@@ -413,6 +470,100 @@ describe('Контроллер заказов', () => {
       11,
       30,
       'Позвонить клиенту за 10 минут',
+    );
+  });
+
+  it('обновляет статус оплаты заказа для staff-пользователя', async () => {
+    service.updatePaymentStatus.mockResolvedValue({
+      id: 31,
+      orderNumber: 'FD-2026-000031',
+      tenantId: 10,
+      tenantName: 'Flowza Cafe',
+      tenantSlug: 'flowza-cafe',
+      status: 'CONFIRMED',
+      paymentMethod: 'CARD',
+      paymentStatus: 'PAID',
+      currency: 'RUB',
+      deliveryAddress: 'Москва',
+      staffComment: null,
+      subtotal: 1300,
+      deliveryFee: 199,
+      discountAmount: 0,
+      finalAmount: 1499,
+      createdAt: new Date('2026-04-12T11:00:00.000Z'),
+      items: [],
+    });
+
+    await expect(
+      controller.updatePaymentStatus(
+        {
+          user: {
+            userId: 11,
+            primaryTenantId: 10,
+            organizationIds: [10, 12],
+            role: 'operator' as never,
+          },
+        },
+        31,
+        { paymentStatus: PaymentStatus.PAID },
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({ paymentStatus: PaymentStatus.PAID }),
+    );
+    expect(service.updatePaymentStatus).toHaveBeenCalledWith(
+      {
+        role: 'operator',
+        organizationIds: [10, 12],
+      },
+      31,
+      PaymentStatus.PAID,
+      11,
+    );
+  });
+
+  it('выполняет операционное действие по заказу для staff-пользователя', async () => {
+    service.applyAction.mockResolvedValue({
+      id: 35,
+      orderNumber: 'FD-2026-000035',
+      tenantId: 10,
+      tenantName: 'Flowza Cafe',
+      tenantSlug: 'flowza-cafe',
+      status: 'COOKING',
+      paymentMethod: 'CARD',
+      paymentStatus: 'PENDING',
+      currency: 'RUB',
+      deliveryAddress: 'Москва',
+      staffComment: null,
+      subtotal: 1000,
+      deliveryFee: 199,
+      discountAmount: 0,
+      finalAmount: 1199,
+      createdAt: new Date('2026-04-12T11:00:00.000Z'),
+      items: [],
+    });
+
+    await expect(
+      controller.applyAction(
+        {
+          user: {
+            userId: 11,
+            primaryTenantId: 10,
+            organizationIds: [10, 12],
+            role: 'operator' as never,
+          },
+        },
+        35,
+        { action: OrderAction.START_COOKING },
+      ),
+    ).resolves.toEqual(expect.objectContaining({ status: 'COOKING' }));
+    expect(service.applyAction).toHaveBeenCalledWith(
+      {
+        role: 'operator',
+        organizationIds: [10, 12],
+      },
+      35,
+      OrderAction.START_COOKING,
+      11,
     );
   });
 });

@@ -723,6 +723,15 @@
         "tags": ["Orders"],
         "summary": "Получить свои заказы",
         "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
         "responses": {
           "200": {
             "description": "Список заказов текущего пользователя",
@@ -736,6 +745,323 @@
             }
           },
           "401": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/tenant": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Получить заказы организации для staff",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список заказов организации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Order" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/queue": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Получить очередь заказов организации",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/OrderStatus" }
+          },
+          {
+            "name": "paymentMethod",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PaymentMethod" }
+          },
+          {
+            "name": "paymentStatus",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PaymentStatus" }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "example": "000031"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Очередь заказов организации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Order" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/comments": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Получить комментарии заказа",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 31
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Комментарии заказа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/OrderComment" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/timeline": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Получить таймлайн заказа",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 31
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["ALL", "EVENT", "COMMENT"]
+            },
+            "example": "EVENT"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Таймлайн заказа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/OrderTimelineEntry" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/status": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Обновить статус заказа",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 31
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateOrderStatusDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Статус заказа обновлен",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/comment": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Обновить комментарий заказа",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 31
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateOrderCommentDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Комментарий заказа обновлен",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/payment-status": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Обновить статус оплаты заказа",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 31
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderPaymentStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Статус оплаты заказа обновлен",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/action": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Выполнить операционное действие по заказу",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 31
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateOrderActionDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Операционное действие выполнено",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
         }
       }
     },
@@ -1463,6 +1789,32 @@
         "type": "string",
         "enum": ["CARD", "CASH", "APPLE_PAY", "GOOGLE_PAY"]
       },
+      "PaymentStatus": {
+        "type": "string",
+        "enum": ["PENDING", "PAID", "FAILED"]
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "NEW",
+          "CONFIRMED",
+          "COOKING",
+          "READY",
+          "DELIVERING",
+          "COMPLETED",
+          "CANCELLED"
+        ]
+      },
+      "OrderAction": {
+        "type": "string",
+        "enum": [
+          "START_COOKING",
+          "MARK_READY",
+          "START_DELIVERY",
+          "COMPLETE_DELIVERY",
+          "CANCEL_ORDER"
+        ]
+      },
       "CreateOrderItemDto": {
         "type": "object",
         "required": ["productId", "quantity"],
@@ -1561,6 +1913,86 @@
           "createdAt",
           "items"
         ]
+      },
+      "OrderCommentAuthor": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "id": { "type": "integer", "example": 11 },
+          "login": { "type": "string", "example": "operator.flowza" },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "operator@flowza.dev"
+          },
+          "role": { "$ref": "#/components/schemas/UserRole" }
+        }
+      },
+      "OrderComment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "comment": {
+            "type": "string",
+            "example": "Позвонить клиенту перед отправкой"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-12T10:05:00.000Z"
+          },
+          "author": { "$ref": "#/components/schemas/OrderCommentAuthor" }
+        },
+        "required": ["id", "comment", "createdAt", "author"]
+      },
+      "OrderTimelineEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "type": {
+            "type": "string",
+            "enum": ["EVENT", "COMMENT"],
+            "example": "EVENT"
+          },
+          "message": {
+            "type": "string",
+            "example": "Статус изменен: NEW -> CONFIRMED"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-12T10:05:00.000Z"
+          },
+          "author": { "$ref": "#/components/schemas/OrderCommentAuthor" }
+        },
+        "required": ["id", "type", "message", "createdAt", "author"]
+      },
+      "UpdateOrderStatusDto": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/OrderStatus" }
+        }
+      },
+      "UpdateOrderCommentDto": {
+        "type": "object",
+        "properties": {
+          "comment": { "type": "string", "example": "Позвонить клиенту" }
+        }
+      },
+      "UpdateOrderPaymentStatusDto": {
+        "type": "object",
+        "required": ["paymentStatus"],
+        "properties": {
+          "paymentStatus": { "$ref": "#/components/schemas/PaymentStatus" }
+        }
+      },
+      "UpdateOrderActionDto": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "$ref": "#/components/schemas/OrderAction" }
+        }
       },
       "CreateStaffUserDto": {
         "type": "object",

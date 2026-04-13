@@ -27,7 +27,7 @@
 
 Скрипты в корневом `package.json` запускают нужный пакет через фильтры, например:
 
-- `pnpm dev` — параллельно backend, admin и web (см. корневой `package.json`)
+- `pnpm dev` — параллельно backend, admin, web и swagger (см. корневой `package.json`)
 - `pnpm dev:backend` / `pnpm dev:admin` / `pnpm dev:web` — по одному приложению
 - `pnpm dev:swagger` — отдельный Swagger UI для уже готовых backend-эндпоинтов
 - `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` — по всем приложениям в `apps/*`, где есть соответствующие скрипты

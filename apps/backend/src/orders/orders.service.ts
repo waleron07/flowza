@@ -10,6 +10,14 @@ import { TenantActor } from '../tenants/types/tenant-actor.type';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { generateOrderNumber } from './utils/order-number.util';
 
+export enum OrderAction {
+  START_COOKING = 'START_COOKING',
+  MARK_READY = 'MARK_READY',
+  START_DELIVERY = 'START_DELIVERY',
+  COMPLETE_DELIVERY = 'COMPLETE_DELIVERY',
+  CANCEL_ORDER = 'CANCEL_ORDER',
+}
+
 type OrderView = {
   id: number;
   orderNumber: string;
@@ -55,6 +63,8 @@ type OrderCommentView = {
     role: string;
   } | null;
 };
+
+type OrderTimelineType = 'ALL' | 'EVENT' | 'COMMENT';
 
 type OrderCommentRepository = {
   findMany(args: {
@@ -120,6 +130,15 @@ export class OrdersService {
     CANCELLED: [],
   };
 
+  private readonly allowedPaymentStatusTransitions: Record<
+    PaymentStatus,
+    PaymentStatus[]
+  > = {
+    PENDING: [PaymentStatus.PAID, PaymentStatus.FAILED],
+    FAILED: [PaymentStatus.PAID],
+    PAID: [],
+  };
+
   private readonly defaultQueueStatuses = [
     OrderStatus.NEW,
     OrderStatus.CONFIRMED,
@@ -127,6 +146,14 @@ export class OrdersService {
     OrderStatus.READY,
     OrderStatus.DELIVERING,
   ];
+
+  private readonly orderActionToStatusMap: Record<OrderAction, OrderStatus> = {
+    [OrderAction.START_COOKING]: OrderStatus.COOKING,
+    [OrderAction.MARK_READY]: OrderStatus.READY,
+    [OrderAction.START_DELIVERY]: OrderStatus.DELIVERING,
+    [OrderAction.COMPLETE_DELIVERY]: OrderStatus.COMPLETED,
+    [OrderAction.CANCEL_ORDER]: OrderStatus.CANCELLED,
+  };
 
   private readonly orderCommentSelect = {
     id: true,
@@ -359,7 +386,39 @@ export class OrdersService {
     return comments.map((comment) => this.mapOrderComment(comment));
   }
 
-  async updateStatus(actor: TenantActor, orderId: number, status: OrderStatus) {
+  async findTimeline(
+    actor: TenantActor,
+    orderId: number,
+    type: OrderTimelineType = 'ALL',
+  ) {
+    const comments = await this.findComments(actor, orderId);
+    const timeline = comments.map((entry) => {
+      const entryType = this.isOrderEventEntry(entry.comment)
+        ? 'EVENT'
+        : 'COMMENT';
+
+      return {
+        id: entry.id,
+        type: entryType,
+        message: entry.comment,
+        createdAt: entry.createdAt,
+        author: entry.author,
+      };
+    });
+
+    if (type === 'ALL') {
+      return timeline;
+    }
+
+    return timeline.filter((entry) => entry.type === type);
+  }
+
+  async updateStatus(
+    actor: TenantActor,
+    orderId: number,
+    status: OrderStatus,
+    actorUserId?: number,
+  ) {
     const existingOrder = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: {
@@ -405,11 +464,32 @@ export class OrdersService {
         ...(status === OrderStatus.CONFIRMED ? { confirmedAt: now } : {}),
         ...(status === OrderStatus.COMPLETED ? { deliveredAt: now } : {}),
         ...(status === OrderStatus.CANCELLED ? { cancelledAt: now } : {}),
+        comments: {
+          create: {
+            authorId: actorUserId,
+            comment: `Статус изменен: ${existingOrder.status} -> ${status}`,
+          },
+        },
       },
       select: this.orderSelect,
     });
 
     return this.mapOrder(order);
+  }
+
+  async applyAction(
+    actor: TenantActor,
+    orderId: number,
+    action: OrderAction,
+    actorUserId?: number,
+  ) {
+    const targetStatus = this.orderActionToStatusMap[action];
+
+    if (!targetStatus) {
+      throw new BadRequestException(`Неизвестное действие заказа: ${action}`);
+    }
+
+    return this.updateStatus(actor, orderId, targetStatus, actorUserId);
   }
 
   async updateComment(
@@ -457,6 +537,72 @@ export class OrdersService {
     return this.mapOrder(order as OrderView);
   }
 
+  async updatePaymentStatus(
+    actor: TenantActor,
+    orderId: number,
+    paymentStatus: PaymentStatus,
+    actorUserId?: number,
+  ) {
+    const existingOrder = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        tenantId: true,
+        paymentStatus: true,
+      },
+    });
+
+    if (!existingOrder) {
+      throw new NotFoundException('Заказ не найден');
+    }
+
+    this.tenantAccessService.assertCanManageOrganization(
+      actor,
+      existingOrder.tenantId,
+    );
+
+    if (existingOrder.paymentStatus === paymentStatus) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        select: this.orderSelect,
+      });
+
+      if (!order) {
+        throw new NotFoundException('Заказ не найден');
+      }
+
+      return this.mapOrder(order);
+    }
+
+    if (
+      !this.allowedPaymentStatusTransitions[
+        existingOrder.paymentStatus
+      ].includes(paymentStatus)
+    ) {
+      throw new BadRequestException(
+        `Переход статуса оплаты из ${existingOrder.paymentStatus} в ${paymentStatus} запрещен`,
+      );
+    }
+
+    const now = new Date();
+    const order = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus,
+        ...(paymentStatus === PaymentStatus.PAID ? { paidAt: now } : {}),
+        comments: {
+          create: {
+            authorId: actorUserId,
+            comment: `Статус оплаты изменен: ${existingOrder.paymentStatus} -> ${paymentStatus}`,
+          },
+        },
+      },
+      select: this.orderSelect,
+    });
+
+    return this.mapOrder(order);
+  }
+
   private createTemporaryOrderNumber(userId: number) {
     return `TMP-${Date.now()}-${userId}-${Math.random().toString(36).slice(2, 8)}`;
   }
@@ -497,5 +643,12 @@ export class OrdersService {
           }
         : null,
     };
+  }
+
+  private isOrderEventEntry(comment: string) {
+    return (
+      comment.startsWith('Статус изменен:') ||
+      comment.startsWith('Статус оплаты изменен:')
+    );
   }
 }
