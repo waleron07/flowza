@@ -28,9 +28,23 @@
 Скрипты в корневом `package.json` запускают нужный пакет через фильтры, например:
 
 - `pnpm dev` — параллельно backend, admin, web и swagger (см. корневой `package.json`)
+- `pnpm dev:browser` — то же, что `pnpm dev`, но автоматически открывает вкладки в Chrome для всех сервисов (web, admin, backend, swagger) через ~2 секунды после запуска
 - `pnpm dev:backend` / `pnpm dev:admin` / `pnpm dev:web` — по одному приложению
 - `pnpm dev:swagger` — отдельный Swagger UI для уже готовых backend-эндпоинтов
 - `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` — по всем приложениям в `apps/*`, где есть соответствующие скрипты
+
+### `pnpm dev:browser` — запуск с автооткрытием браузера
+
+Команда запускает все сервисы и через 2 секунды открывает в Chrome четыре вкладки:
+
+| Адрес                   | Сервис                    |
+| ----------------------- | ------------------------- |
+| `http://localhost:5174` | Web (клиентская часть)    |
+| `http://localhost:5173` | Admin (панель управления) |
+| `http://localhost:3000` | Backend API               |
+| `http://localhost:5175` | Swagger UI                |
+
+> Если Vite при старте автоматически переопределит порт (например, `5173` уже занят), фактический порт будет виден в выводе консоли рядом с `Local: http://localhost:...`.
 
 ## Как поднять Swagger
 

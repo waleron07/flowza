@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
 import { JwtAuthGuard } from '../../src/auth/guards/jwt-auth.guard';
 import { UserRole } from '../../src/common/enums/user-role.enum';
 import { PrismaService } from '../../src/database/prisma.service';
@@ -141,6 +142,7 @@ describe('Интеграция orders', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 

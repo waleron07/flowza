@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
 import { JwtAuthGuard } from '../../src/auth/guards/jwt-auth.guard';
 import { UserRole } from '../../src/common/enums/user-role.enum';
 import { PrismaService } from '../../src/database/prisma.service';
@@ -90,6 +91,7 @@ describe('Интеграция tenants', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 

@@ -5,8 +5,12 @@ import { App } from 'supertest/types';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../../src/app.module';
 import { UsersService } from '../../src/users/users.service';
+import { EmailSenderService } from '../../src/auth/email-sender.service';
 import { CreateUserInput } from '../../src/users/types/create-user.type';
 import { UserRole } from '../../src/common/enums/user-role.enum';
+import { AuthRateLimiterService } from '../../src/auth/auth-rate-limiter.service';
+import { TurnstileCaptchaService } from '../../src/auth/turnstile-captcha.service';
+import { configureApp } from '../../src/app.setup';
 
 interface InMemoryUser {
   id: number;
@@ -49,6 +53,10 @@ class InMemoryUsersService {
 
   findByEmail(email: string) {
     return this.users.find((user) => user.email === email) ?? null;
+  }
+
+  findByLogin(login: string) {
+    return this.users.find((user) => user.login === login) ?? null;
   }
 
   create(input: CreateUserInput) {
@@ -108,8 +116,9 @@ class InMemoryUsersService {
     return (
       this.emailCodes
         .filter((code) => code.userId === userId)
-        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ??
-      null
+        .sort(
+          (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+        )[0] ?? null
     );
   }
 
@@ -178,37 +187,114 @@ class InMemoryUsersService {
 describe('E2E проверки авторизации', () => {
   let app: INestApplication<App>;
   let usersService: InMemoryUsersService;
+  let verificationCodesByEmail: Map<string, string>;
 
   beforeEach(async () => {
     usersService = new InMemoryUsersService();
+    verificationCodesByEmail = new Map<string, string>();
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(UsersService)
       .useValue(usersService)
+      .overrideProvider(EmailSenderService)
+      .useValue({
+        sendVerificationCode: jest
+          .fn()
+          .mockImplementation(
+            ({ email, code }: { email: string; code: string }) => {
+              verificationCodesByEmail.set(email, code);
+              return { sentViaSmtp: false };
+            },
+          ),
+      })
+      .overrideProvider(AuthRateLimiterService)
+      .useValue({
+        hit: jest.fn().mockReturnValue({ allowed: true, retryAfterSec: 0 }),
+      })
+      .overrideProvider(TurnstileCaptchaService)
+      .useValue({
+        assertValidToken: jest.fn().mockResolvedValue(undefined),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
-  it('удаляет свой аккаунт через DELETE /auth/me и блокирует повторный вход', async () => {
-    const registerResponse = await request(app.getHttpServer())
+  const buildRegisterPayload = (
+    overrides?: Partial<{
+      phone: string;
+      email: string;
+      login: string;
+      password: string;
+    }>,
+  ) => ({
+    phone: '+79991234567',
+    email: 'user@example.com',
+    login: 'user_login',
+    password: 'password123',
+    consentToPrivacyPolicy: true,
+    consentToPersonalData: true,
+    agreementVersion: '2026-04-04',
+    captchaToken: 'mock-captcha-token',
+    ...overrides,
+  });
+
+  const registerUser = async (
+    overrides?: Partial<{
+      phone: string;
+      email: string;
+      login: string;
+      password: string;
+    }>,
+  ) => {
+    const payload = buildRegisterPayload(overrides);
+
+    await request(app.getHttpServer())
       .post('/auth/register')
+      .send(payload)
+      .expect(201);
+
+    return payload;
+  };
+
+  const verifyRegisteredUser = async (email: string) => {
+    const code = verificationCodesByEmail.get(email);
+    expect(code).toBeDefined();
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/register/verify-email')
       .send({
-        phone: '+79991234567',
-        email: 'user1@example.com',
-        login: 'ivan_user',
-        password: 'password123',
-        consentToPrivacyPolicy: true,
-        consentToPersonalData: true,
-        agreementVersion: '2026-04-04',
-        captchaToken: 'mock-captcha-token',
+        email,
+        code,
       })
       .expect(201);
 
-    const registerBody = registerResponse.body as { accessToken: string };
-    const accessToken = registerBody.accessToken;
+    return response.body as { accessToken: string };
+  };
+
+  const registerAndVerify = async (
+    overrides?: Partial<{
+      phone: string;
+      email: string;
+      login: string;
+      password: string;
+    }>,
+  ) => {
+    const payload = await registerUser(overrides);
+    const verifyBody = await verifyRegisteredUser(payload.email);
+
+    return { payload, accessToken: verifyBody.accessToken };
+  };
+
+  it('удаляет свой аккаунт через DELETE /auth/me и блокирует повторный вход', async () => {
+    const { accessToken } = await registerAndVerify({
+      phone: '+79991234567',
+      email: 'user1@example.com',
+      login: 'ivan_user',
+    });
     expect(accessToken).toBeDefined();
 
     await request(app.getHttpServer())
@@ -230,21 +316,49 @@ describe('E2E проверки авторизации', () => {
     await request(app.getHttpServer()).delete('/auth/me').expect(401);
   });
 
+  it('возвращает единый формат validation-ошибки для /auth/register', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        phone: '123',
+        email: 'wrong-email',
+        login: 'bad login',
+        password: '123',
+        consentToPrivacyPolicy: 'nope',
+        consentToPersonalData: false,
+        agreementVersion: '',
+        captchaToken: '',
+        extraField: 'forbidden',
+      })
+      .expect(400);
+
+    const body = response.body as {
+      success: false;
+      statusCode: number;
+      errorCode: string;
+      message: string;
+      path: string;
+      details: Array<{ field: string; message: string }>;
+    };
+
+    expect(body).toMatchObject({
+      success: false,
+      statusCode: 400,
+      errorCode: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      path: '/auth/register',
+    });
+    expect(Array.isArray(body.details)).toBe(true);
+    expect(body.details.length).toBeGreaterThan(0);
+  });
+
   describe('POST /auth/login', () => {
     it('выполняет вход при корректном телефоне и пароле', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          phone: '+79990000001',
-          email: 'user2@example.com',
-          login: 'alex_user',
-          password: 'password123',
-          consentToPrivacyPolicy: true,
-          consentToPersonalData: true,
-          agreementVersion: '2026-04-04',
-          captchaToken: 'mock-captcha-token',
-        })
-        .expect(201);
+      await registerAndVerify({
+        phone: '+79990000001',
+        email: 'user2@example.com',
+        login: 'alex_user',
+      });
 
       const loginResponse = await request(app.getHttpServer())
         .post('/auth/login')
@@ -259,19 +373,11 @@ describe('E2E проверки авторизации', () => {
     });
 
     it('возвращает ошибку при неверном пароле', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          phone: '+79990000002',
-          email: 'user3@example.com',
-          login: 'maria_user',
-          password: 'password123',
-          consentToPrivacyPolicy: true,
-          consentToPersonalData: true,
-          agreementVersion: '2026-04-04',
-          captchaToken: 'mock-captcha-token',
-        })
-        .expect(201);
+      await registerAndVerify({
+        phone: '+79990000002',
+        email: 'user3@example.com',
+        login: 'maria_user',
+      });
 
       await request(app.getHttpServer())
         .post('/auth/login')
@@ -283,25 +389,15 @@ describe('E2E проверки авторизации', () => {
     });
 
     it('возвращает ошибку для неактивного пользователя', async () => {
-      const registerResponse = await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          phone: '+79990000003',
-          email: 'user4@example.com',
-          login: 'olga_user',
-          password: 'password123',
-          consentToPrivacyPolicy: true,
-          consentToPersonalData: true,
-          agreementVersion: '2026-04-04',
-          captchaToken: 'mock-captcha-token',
-        })
-        .expect(201);
-
-      const registerBody = registerResponse.body as { accessToken: string };
+      const { accessToken } = await registerAndVerify({
+        phone: '+79990000003',
+        email: 'user4@example.com',
+        login: 'olga_user',
+      });
 
       await request(app.getHttpServer())
         .delete('/auth/me')
-        .set('Authorization', `Bearer ${registerBody.accessToken}`)
+        .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
       await request(app.getHttpServer())
@@ -316,25 +412,15 @@ describe('E2E проверки авторизации', () => {
 
   describe('GET /auth/me', () => {
     it('возвращает профиль для валидного токена активного пользователя', async () => {
-      const registerResponse = await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          phone: '+79990000004',
-          email: 'user5@example.com',
-          login: 'elena_user',
-          password: 'password123',
-          consentToPrivacyPolicy: true,
-          consentToPersonalData: true,
-          agreementVersion: '2026-04-04',
-          captchaToken: 'mock-captcha-token',
-        })
-        .expect(201);
-
-      const registerBody = registerResponse.body as { accessToken: string };
+      const { accessToken } = await registerAndVerify({
+        phone: '+79990000004',
+        email: 'user5@example.com',
+        login: 'elena_user',
+      });
 
       const meResponse = await request(app.getHttpServer())
         .get('/auth/me')
-        .set('Authorization', `Bearer ${registerBody.accessToken}`)
+        .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
       const meBody = meResponse.body as { phone: string; login: string };
@@ -347,30 +433,20 @@ describe('E2E проверки авторизации', () => {
     });
 
     it('возвращает 401 для деактивированного пользователя', async () => {
-      const registerResponse = await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          phone: '+79990000005',
-          email: 'user6@example.com',
-          login: 'nikita_user',
-          password: 'password123',
-          consentToPrivacyPolicy: true,
-          consentToPersonalData: true,
-          agreementVersion: '2026-04-04',
-          captchaToken: 'mock-captcha-token',
-        })
-        .expect(201);
-
-      const registerBody = registerResponse.body as { accessToken: string };
+      const { accessToken } = await registerAndVerify({
+        phone: '+79990000005',
+        email: 'user6@example.com',
+        login: 'nikita_user',
+      });
 
       await request(app.getHttpServer())
         .delete('/auth/me')
-        .set('Authorization', `Bearer ${registerBody.accessToken}`)
+        .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
       await request(app.getHttpServer())
         .get('/auth/me')
-        .set('Authorization', `Bearer ${registerBody.accessToken}`)
+        .set('Authorization', `Bearer ${accessToken}`)
         .expect(401);
     });
   });
@@ -433,25 +509,15 @@ describe('E2E проверки авторизации', () => {
     });
 
     it('запрещает user создавать staff-пользователей', async () => {
-      const registerResponse = await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          phone: '+79990000013',
-          email: 'user7@example.com',
-          login: 'client_user',
-          password: 'password123',
-          consentToPrivacyPolicy: true,
-          consentToPersonalData: true,
-          agreementVersion: '2026-04-04',
-          captchaToken: 'mock-captcha-token',
-        })
-        .expect(201);
-
-      const registerBody = registerResponse.body as { accessToken: string };
+      const { accessToken } = await registerAndVerify({
+        phone: '+79990000013',
+        email: 'user7@example.com',
+        login: 'client_user',
+      });
 
       await request(app.getHttpServer())
         .post('/users/staff')
-        .set('Authorization', `Bearer ${registerBody.accessToken}`)
+        .set('Authorization', `Bearer ${accessToken}`)
         .send({
           phone: '+79990000014',
           email: 'staff-by-user@example.com',

@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
 import { UsersService } from '../../src/users/users.service';
 import { CreateUserInput } from '../../src/users/types/create-user.type';
 import { UserRole } from '../../src/common/enums/user-role.enum';
@@ -107,11 +108,14 @@ describe('E2E проверки категорий', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
   it('запрещает доступ к категориям без токена', async () => {
-    await request(app.getHttpServer()).get('/categories?tenantId=10').expect(401);
+    await request(app.getHttpServer())
+      .get('/categories?tenantId=10')
+      .expect(401);
   });
 
   it('разрешает admin создавать категорию', async () => {
