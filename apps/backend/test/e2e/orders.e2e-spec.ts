@@ -9,6 +9,7 @@ import { App } from 'supertest/types';
 import * as bcrypt from 'bcrypt';
 import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
 import { UserRole } from '../../src/common/enums/user-role.enum';
 import { OrdersService } from '../../src/orders/orders.service';
 import { UsersService } from '../../src/users/users.service';
@@ -129,6 +130,7 @@ describe('E2E проверки заказов', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 

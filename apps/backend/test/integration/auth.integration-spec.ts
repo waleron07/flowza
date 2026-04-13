@@ -4,8 +4,10 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
 import { UsersService } from '../../src/users/users.service';
 import { JwtAuthGuard } from '../../src/auth/guards/jwt-auth.guard';
+import { EmailSenderService } from '../../src/auth/email-sender.service';
 import { UserRole } from '../../src/common/enums/user-role.enum';
 
 describe('Интеграция auth', () => {
@@ -48,6 +50,12 @@ describe('Интеграция auth', () => {
     })
       .overrideProvider(UsersService)
       .useValue(usersServiceMock)
+      .overrideProvider(EmailSenderService)
+      .useValue({
+        sendVerificationCode: jest
+          .fn()
+          .mockResolvedValue({ sentViaSmtp: false }),
+      })
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate(context: {
@@ -69,6 +77,7 @@ describe('Интеграция auth', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 

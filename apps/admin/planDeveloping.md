@@ -47,7 +47,7 @@
 - Клиентская email-верификация и SMTP на backend для локальной разработки уже работают; админка остаётся сфокусированной на staff-auth и tenant/staff CRUD.
 - Для admin-management слоя уже доступны и используются: `GET /tenants/manageable` и `GET /tenants/:tenantId/management`.
 - Backend уже отдает organization showcase-поля, категории и карточки товаров в management view, поэтому admin может редактировать не только базовые реквизиты организации, но и главную страницу/каталог.
-- Базовый order API на backend уже существует (`POST /orders`, `GET /orders/my`), но staff-экран управления заказами в `apps/admin` пока остается следующим этапом.
+- Backend уже поддерживает расширенный staff order workflow (очередь, смена статусов, комментарии, timeline), поэтому `apps/admin` может строить экран управления заказами поверх реальных контрактов без промежуточных mock-API.
 
 На backend уже реализовано и доступно для admin части:
 
@@ -72,6 +72,14 @@
 - `DELETE /products/:productId`
 - `POST /orders`
 - `GET /orders/my`
+- `GET /orders/tenant?tenantId=...`
+- `GET /orders/queue?tenantId=...&status=...&paymentMethod=...&paymentStatus=...&search=...`
+- `PATCH /orders/:orderId/status`
+- `PATCH /orders/:orderId/comment`
+- `PATCH /orders/:orderId/payment-status`
+- `PATCH /orders/:orderId/action`
+- `GET /orders/:orderId/comments`
+- `GET /orders/:orderId/timeline?type=ALL|EVENT|COMMENT`
 
 Также уже есть:
 
@@ -85,6 +93,9 @@
   - `user`
 - soft-delete аккаунта через `isActive = false`;
 - role-based ограничения на создание сотрудников через `POST /users/staff`.
+- единый формат ошибок (`success/statusCode/message/errorCode/details/timestamp/path`);
+- correlation header `x-request-id`;
+- backend OpenAPI документация через `GET /docs` и `GET /docs-json`.
 
 Это значит, что admin frontend уже можно строить не "в вакууме", а сразу под реальные backend-контракты.
 
@@ -536,7 +547,7 @@ Admin frontend готов к разработке боевых фич.
 - реализована role-based логика формы:
   - `admin` может выбирать только `moderator` и `operator`;
   - `superAdmin` может выбирать `admin`, `moderator`, `operator`;
-  - следующим шагом форма должна окончательно перейти на `organizationIds` вместо старого одиночного `tenantId`;
+  - форма уже работает с `organizationIds` как основным контрактом multi-tenant назначения;
 - добавлены тесты на:
   - role-based доступные роли;
   - отображение организационного контекста для `superAdmin`;
@@ -641,8 +652,8 @@ Admin frontend готов к разработке боевых фич.
 
 1. завершить staff management: список сотрудников, обновление после создания и дальнейший edit/remove сценарий;
 2. при необходимости дожать profile/self-delete UX, если он еще не закрыт полностью в UI;
-3. собрать orders management screen для `operator`, `admin`, `superAdmin` поверх существующего и следующего backend order API;
-4. добавить UI смены статусов и комментариев к заказам после выхода соответствующих backend-контрактов;
+3. собрать orders management screen для `operator`, `admin`, `superAdmin` поверх уже доступного backend order API;
+4. добавить UI смены статусов, комментариев, timeline и операционных действий заказа на уже доступных backend-контрактах;
 5. затем переходить к dashboard-аналитике, audit log и более сложному permission UI.
 
 ## 11. Итог
@@ -662,6 +673,7 @@ Admin frontend нужно строить уже не как абстрактну
 - CRUD категорий
 - CRUD продуктов
 - screens управления организациями и storefront preview
+- staff order management (`queue/status/comment/payment-status/action/timeline`)
 
 И вокруг router-архитектуры, где staff-роли получают раздельные ветки интерфейса:
 
