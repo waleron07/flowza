@@ -5,7 +5,7 @@ import { App } from 'supertest/types';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../../src/app.module';
 import { UsersService } from '../../src/users/users.service';
-import { EmailSenderService } from '../../src/auth/email-sender.service';
+import { EmailSenderService } from '../../src/email/email-sender.service';
 import { CreateUserInput } from '../../src/users/types/create-user.type';
 import { UserRole } from '../../src/common/enums/user-role.enum';
 import { AuthRateLimiterService } from '../../src/auth/auth-rate-limiter.service';

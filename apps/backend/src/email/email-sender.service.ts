@@ -64,7 +64,7 @@ export class EmailSenderService {
       this.transporter = createTransport(options);
     } else if (process.env.NODE_ENV !== 'test') {
       this.logger.warn(
-        'SMTP is not configured. Verification codes are logged instead of being sent.',
+        'SMTP не настроен. Коды подтверждения будут выводиться в логи вместо отправки письмом.',
       );
     }
   }
@@ -137,7 +137,7 @@ export class EmailSenderService {
 
     if (!this.smtpEnabled || !this.transporter) {
       this.logger.log(
-        `${template.subject}. Verification code for ${params.email}: ${params.code} (expires in ${params.ttlMinutes} min)`,
+        `${template.subject}. Код подтверждения для ${params.email}: ${params.code} (действует ${params.ttlMinutes} мин.)`,
       );
       return { sentViaSmtp: false };
     }
@@ -162,21 +162,23 @@ export class EmailSenderService {
           break;
         }
         this.logger.warn(
-          `Failed to send verification email (attempt ${attempt}/${maxAttempts}) for ${params.email}: ${this.formatSmtpError(error)}. Retrying in ${this.smtpRetryDelayMs}ms.`,
+          `Не удалось отправить письмо подтверждения (попытка ${attempt}/${maxAttempts}) для ${params.email}: ${this.formatSmtpError(error)}. Повтор через ${this.smtpRetryDelayMs}мс.`,
         );
         await this.wait(this.smtpRetryDelayMs);
       }
     }
 
     this.logger.error(
-      `Failed to send verification code to ${params.email} after ${maxAttempts} attempts: ${this.formatSmtpError(lastError)}`,
+      `Не удалось отправить код подтверждения на ${params.email} после ${maxAttempts} попыток: ${this.formatSmtpError(lastError)}`,
       lastError instanceof Error ? lastError.stack : undefined,
     );
     if (this.isSmtpAuthError(lastError)) {
       throw new InternalServerErrorException(
-        'SMTP authentication failed (invalid login or password). For Yandex: use the full email as SMTP_USER, and SMTP_PASS must be an app password if 2FA is enabled (Yandex ID → Security → App passwords).',
+        'Ошибка SMTP-аутентификации: неверный логин или пароль. Для Яндекса используйте полный email в SMTP_USER, а в SMTP_PASS — пароль приложения, если включена 2FA (Яндекс ID → Безопасность → Пароли приложений).',
       );
     }
-    throw new InternalServerErrorException('Could not send verification email');
+    throw new InternalServerErrorException(
+      'Не удалось отправить письмо с подтверждением',
+    );
   }
 }

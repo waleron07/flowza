@@ -25,10 +25,19 @@ type ErrorResponseBody = {
   path: string;
 };
 
+/**
+ * Глобальный filter для унифицированного JSON-ответа при ошибках.
+ *
+ * Приводит `HttpException` и неожиданные ошибки к одному контракту:
+ * `success=false`, `statusCode`, человекочитаемый `message`, машинный
+ * `errorCode`, `timestamp` и `path`. Для 5xx пишет error-лог, для остальных
+ * статусов — warn-лог.
+ */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
+  /** Нормализует exception и отправляет JSON-ответ клиенту. */
   catch(exception: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
@@ -71,6 +80,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(statusCode).json(body);
   }
 
+  /**
+   * Достает message/errorCode/details из тела `HttpException`.
+   *
+   * Nest и class-validator могут отдавать разные форматы: строку, объект или
+   * массив сообщений. Здесь они сводятся к стабильному API-контракту.
+   */
   private normalizeExceptionResponse(
     statusCode: number,
     exceptionResponse: unknown,
@@ -109,12 +124,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     return {
       message:
         statusCode === HTTP_INTERNAL_SERVER_ERROR
-          ? 'Internal server error'
-          : 'Request failed',
+          ? 'Внутренняя ошибка сервера'
+          : 'Запрос завершился ошибкой',
       errorCode: this.defaultErrorCode(statusCode),
     };
   }
 
+  /** Извлекает человекочитаемое сообщение из стандартного ответа Nest. */
   private extractMessage(
     responseObject: Record<string, unknown>,
     statusCode: number,
@@ -128,15 +144,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       responseObject.message.every((item) => typeof item === 'string')
     ) {
       return statusCode === HTTP_BAD_REQUEST
-        ? 'Validation failed'
+        ? 'Ошибка валидации'
         : responseObject.message[0];
     }
 
     return statusCode === HTTP_INTERNAL_SERVER_ERROR
-      ? 'Internal server error'
-      : 'Request failed';
+      ? 'Внутренняя ошибка сервера'
+      : 'Запрос завершился ошибкой';
   }
 
+  /** Возвращает стабильный машинный код ошибки по HTTP-статусу. */
   private defaultErrorCode(statusCode: number): string {
     switch (statusCode) {
       case HTTP_BAD_REQUEST:

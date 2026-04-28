@@ -5,6 +5,12 @@ import { TenantActor } from '../tenants/types/tenant-actor.type';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+/**
+ * Доменный сервис категорий меню.
+ *
+ * Категории tenant-scoped: перед любым чтением/изменением сервис проверяет,
+ * что текущий actor имеет право управлять организацией категории.
+ */
 @Injectable()
 export class CategoriesService {
   constructor(
@@ -12,6 +18,11 @@ export class CategoriesService {
     private readonly tenantAccessService: TenantAccessService,
   ) {}
 
+  /**
+   * Возвращает категории организации в порядке отображения меню.
+   *
+   * @throws ForbiddenException внутри `TenantAccessService`, если actor не имеет доступа.
+   */
   async findAll(actor: TenantActor, tenantId: number) {
     this.tenantAccessService.assertCanManageOrganization(actor, tenantId);
 
@@ -21,6 +32,12 @@ export class CategoriesService {
     });
   }
 
+  /**
+   * Создает категорию в указанной организации.
+   *
+   * `sortOrder` и `isActive` имеют backend-default'ы, чтобы frontend мог
+   * отправлять минимальный payload.
+   */
   async create(actor: TenantActor, dto: CreateCategoryDto) {
     this.tenantAccessService.assertCanManageOrganization(actor, dto.tenantId);
 
@@ -36,6 +53,12 @@ export class CategoriesService {
     });
   }
 
+  /**
+   * Частично обновляет категорию.
+   *
+   * Сначала перечитывает категорию, чтобы получить `tenantId` для проверки
+   * доступа. Не найденная категория возвращает 404.
+   */
   async update(actor: TenantActor, categoryId: number, dto: UpdateCategoryDto) {
     const existingCategory = await this.prisma.category.findUnique({
       where: { id: categoryId },
@@ -63,6 +86,12 @@ export class CategoriesService {
     });
   }
 
+  /**
+   * Soft-delete категории.
+   *
+   * Физически запись не удаляется: выставляется `isActive=false`, чтобы
+   * сохранить историю связей и избежать потери данных меню.
+   */
   async remove(actor: TenantActor, categoryId: number) {
     const existingCategory = await this.prisma.category.findUnique({
       where: { id: categoryId },

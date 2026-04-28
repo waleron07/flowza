@@ -22,27 +22,32 @@ import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderAction, OrdersService } from './orders.service';
 
+/** Payload ручного изменения статуса заказа staff-пользователем. */
 class UpdateOrderStatusDto {
-  @IsEnum(OrderStatus)
+  @IsEnum(OrderStatus, { message: 'Некорректный статус заказа' })
   status!: OrderStatus;
 }
 
+/** Payload staff-комментария к заказу. */
 class UpdateOrderCommentDto {
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Комментарий должен быть строкой' })
   comment?: string;
 }
 
+/** Payload ручного изменения статуса оплаты. */
 class UpdateOrderPaymentStatusDto {
-  @IsEnum(PaymentStatus)
+  @IsEnum(PaymentStatus, { message: 'Некорректный статус оплаты' })
   paymentStatus!: PaymentStatus;
 }
 
+/** Payload быстрых действий очереди заказов. */
 class UpdateOrderActionDto {
-  @IsEnum(OrderAction)
+  @IsEnum(OrderAction, { message: 'Некорректное действие заказа' })
   action!: OrderAction;
 }
 
+/** Query-фильтры staff-очереди заказов. */
 type OrderQueueQuery = {
   tenantId?: string;
   status?: string;
@@ -51,15 +56,24 @@ type OrderQueueQuery = {
   search?: string;
 };
 
+/** Query-фильтр timeline заказа. */
 type OrderTimelineQuery = {
   type?: string;
 };
 
+/**
+ * API заказов.
+ *
+ * Клиентские endpoints (`create`, `my`) доступны любому авторизованному
+ * пользователю. Staff endpoints дополнительно защищены `RolesGuard` и
+ * tenant-aware проверками в `OrdersService`.
+ */
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  /** Парсит `tenantId` из query и гарантирует положительное целое число. */
   private parseTenantIdQuery(tenantId?: string) {
     if (tenantId === undefined) {
       return undefined;
@@ -68,12 +82,15 @@ export class OrdersController {
     const parsedTenantId = Number(tenantId);
 
     if (!Number.isInteger(parsedTenantId) || parsedTenantId <= 0) {
-      throw new BadRequestException('tenantId must be a positive integer');
+      throw new BadRequestException(
+        'tenantId должен быть положительным целым числом',
+      );
     }
 
     return parsedTenantId;
   }
 
+  /** Валидирует query-фильтр статуса заказа. */
   private parseOrderStatusQuery(status?: string) {
     if (status === undefined) {
       return undefined;
@@ -82,12 +99,13 @@ export class OrdersController {
     const values = Object.values(OrderStatus) as string[];
 
     if (!values.includes(status)) {
-      throw new BadRequestException('status must be a valid OrderStatus');
+      throw new BadRequestException('status должен быть валидным OrderStatus');
     }
 
     return status as OrderStatus;
   }
 
+  /** Валидирует query-фильтр способа оплаты. */
   private parsePaymentMethodQuery(paymentMethod?: string) {
     if (paymentMethod === undefined) {
       return undefined;
@@ -97,13 +115,14 @@ export class OrdersController {
 
     if (!values.includes(paymentMethod)) {
       throw new BadRequestException(
-        'paymentMethod must be a valid PaymentMethod',
+        'paymentMethod должен быть валидным PaymentMethod',
       );
     }
 
     return paymentMethod as PaymentMethod;
   }
 
+  /** Валидирует query-фильтр статуса оплаты. */
   private parsePaymentStatusQuery(paymentStatus?: string) {
     if (paymentStatus === undefined) {
       return undefined;
@@ -113,19 +132,21 @@ export class OrdersController {
 
     if (!values.includes(paymentStatus)) {
       throw new BadRequestException(
-        'paymentStatus must be a valid PaymentStatus',
+        'paymentStatus должен быть валидным PaymentStatus',
       );
     }
 
     return paymentStatus as PaymentStatus;
   }
 
+  /** Нормализует поисковую строку очереди заказов. */
   private parseSearchQuery(search?: string) {
     const trimmedSearch = search?.trim();
 
     return trimmedSearch ? trimmedSearch : undefined;
   }
 
+  /** Валидирует тип timeline: все события, только события или только комментарии. */
   private parseTimelineTypeQuery(type?: string) {
     if (type === undefined) {
       return 'ALL' as const;
@@ -137,17 +158,21 @@ export class OrdersController {
       normalizedType !== 'EVENT' &&
       normalizedType !== 'COMMENT'
     ) {
-      throw new BadRequestException('type must be one of: ALL, EVENT, COMMENT');
+      throw new BadRequestException(
+        'type должен быть одним из значений: ALL, EVENT, COMMENT',
+      );
     }
 
     return normalizedType;
   }
 
+  /** Создает заказ текущего пользователя. */
   @Post()
   create(@Req() req: { user: JwtPayload }, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(req.user.userId, dto);
   }
 
+  /** Возвращает заказы текущего пользователя, опционально в рамках tenant. */
   @Get('my')
   findMine(
     @Req() req: { user: JwtPayload },
@@ -166,6 +191,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Возвращает все заказы выбранной организации для staff-интерфейса. */
   @Get('tenant')
   findByTenant(
     @Req() req: { user: JwtPayload },
@@ -178,7 +204,7 @@ export class OrdersController {
     };
 
     if (parsedTenantId === undefined) {
-      throw new BadRequestException('tenantId query parameter is required');
+      throw new BadRequestException('query-параметр tenantId обязателен');
     }
 
     return this.ordersService.findByTenant(actor, parsedTenantId);
@@ -191,12 +217,13 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Возвращает staff-очередь заказов с фильтрами по статусам и поиском. */
   @Get('queue')
   findQueue(@Req() req: { user: JwtPayload }, @Query() query: OrderQueueQuery) {
     const parsedTenantId = this.parseTenantIdQuery(query.tenantId);
 
     if (parsedTenantId === undefined) {
-      throw new BadRequestException('tenantId query parameter is required');
+      throw new BadRequestException('query-параметр tenantId обязателен');
     }
 
     const actor: TenantActor = {
@@ -219,6 +246,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Возвращает staff-комментарии заказа. */
   @Get(':orderId/comments')
   findComments(
     @Req() req: { user: JwtPayload },
@@ -239,6 +267,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Возвращает timeline заказа: комментарии и системные события. */
   @Get(':orderId/timeline')
   findTimeline(
     @Req() req: { user: JwtPayload },
@@ -264,6 +293,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Меняет статус заказа вручную. */
   @Patch(':orderId/status')
   updateStatus(
     @Req() req: { user: JwtPayload },
@@ -290,6 +320,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Обновляет staff-комментарий заказа. */
   @Patch(':orderId/comment')
   updateComment(
     @Req() req: { user: JwtPayload },
@@ -316,6 +347,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Меняет статус оплаты вручную. */
   @Patch(':orderId/payment-status')
   updatePaymentStatus(
     @Req() req: { user: JwtPayload },
@@ -342,6 +374,7 @@ export class OrdersController {
     UserRole.MODERATOR,
     UserRole.OPERATOR,
   )
+  /** Применяет быстрое действие очереди (готовить, готов, доставлять и т.д.). */
   @Patch(':orderId/action')
   applyAction(
     @Req() req: { user: JwtPayload },

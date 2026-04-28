@@ -7,7 +7,7 @@ import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
 import { UsersService } from '../../src/users/users.service';
 import { JwtAuthGuard } from '../../src/auth/guards/jwt-auth.guard';
-import { EmailSenderService } from '../../src/auth/email-sender.service';
+import { EmailSenderService } from '../../src/email/email-sender.service';
 import { UserRole } from '../../src/common/enums/user-role.enum';
 
 describe('Интеграция auth', () => {
