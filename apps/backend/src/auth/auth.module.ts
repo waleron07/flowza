@@ -5,16 +5,23 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
+import { EmailModule } from '../email/email.module';
 import { JwtStrategy } from './jwt.strategy';
-import { EmailSenderService } from './email-sender.service';
-import { EmailTemplateService } from './email-template.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { TurnstileCaptchaService } from './turnstile-captcha.service';
 
+/**
+ * Модуль авторизации.
+ *
+ * Собирает публичные auth-endpoint'ы, JWT strategy, rate limiter и проверку
+ * Turnstile. Отправка писем вынесена в `EmailModule`, чтобы SMTP-инфраструктура
+ * не была частью домена auth.
+ */
 @Module({
   imports: [
     ConfigModule,
     UsersModule,
+    EmailModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -29,8 +36,6 @@ import { TurnstileCaptchaService } from './turnstile-captcha.service';
   providers: [
     AuthService,
     JwtStrategy,
-    EmailSenderService,
-    EmailTemplateService,
     AuthRateLimiterService,
     TurnstileCaptchaService,
   ],

@@ -10,6 +10,12 @@ import { TenantActor } from '../tenants/types/tenant-actor.type';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { generateOrderNumber } from './utils/order-number.util';
 
+/**
+ * Быстрые действия staff-очереди заказов.
+ *
+ * Каждое действие мапится на целевой `OrderStatus`, а затем проходит общую
+ * проверку разрешенного перехода статуса.
+ */
 export enum OrderAction {
   START_COOKING = 'START_COOKING',
   MARK_READY = 'MARK_READY',
@@ -74,6 +80,13 @@ type OrderCommentRepository = {
   }): Promise<OrderCommentView[]>;
 };
 
+/**
+ * Доменный сервис заказов.
+ *
+ * Отвечает за клиентское создание заказа, личную историю, staff-очередь,
+ * комментарии, timeline и безопасные переходы статусов. Все staff-операции
+ * проверяют tenant-доступ через `TenantAccessService`.
+ */
 @Injectable()
 export class OrdersService {
   constructor(
@@ -117,6 +130,7 @@ export class OrdersService {
     },
   };
 
+  /** Разрешенные переходы жизненного цикла заказа. */
   private readonly allowedStatusTransitions: Record<
     OrderStatus,
     OrderStatus[]
@@ -130,6 +144,7 @@ export class OrdersService {
     CANCELLED: [],
   };
 
+  /** Разрешенные переходы статуса оплаты. */
   private readonly allowedPaymentStatusTransitions: Record<
     PaymentStatus,
     PaymentStatus[]
@@ -139,6 +154,7 @@ export class OrdersService {
     PAID: [],
   };
 
+  /** Статусы, которые по умолчанию попадают в staff-очередь активных заказов. */
   private readonly defaultQueueStatuses = [
     OrderStatus.NEW,
     OrderStatus.CONFIRMED,
@@ -147,6 +163,7 @@ export class OrdersService {
     OrderStatus.DELIVERING,
   ];
 
+  /** Маппинг быстрых staff-действий на целевой статус заказа. */
   private readonly orderActionToStatusMap: Record<OrderAction, OrderStatus> = {
     [OrderAction.START_COOKING]: OrderStatus.COOKING,
     [OrderAction.MARK_READY]: OrderStatus.READY,
@@ -155,6 +172,7 @@ export class OrdersService {
     [OrderAction.CANCEL_ORDER]: OrderStatus.CANCELLED,
   };
 
+  /** Select для комментариев заказа с автором. */
   private readonly orderCommentSelect = {
     id: true,
     comment: true,
@@ -169,6 +187,15 @@ export class OrdersService {
     },
   };
 
+  /**
+   * Создает заказ от имени клиента.
+   *
+   * Важные инварианты:
+   * - организация и товары должны быть активны;
+   * - все товары должны принадлежать одной организации и валюте;
+   * - цены, название товара и доставка берутся с backend, а не из payload;
+   * - номер заказа сначала временный, затем заменяется стабильным `FD-YYYY-...`.
+   */
   async create(userId: number, dto: CreateOrderDto) {
     const tenant = await this.prisma.tenant.findFirst({
       where: {
@@ -288,6 +315,7 @@ export class OrdersService {
     return this.mapOrder(order);
   }
 
+  /** Возвращает историю заказов текущего пользователя. */
   async findMine(userId: number, tenantId?: number) {
     const orders = await this.prisma.order.findMany({
       where: {
@@ -301,6 +329,7 @@ export class OrdersService {
     return orders.map((order) => this.mapOrder(order));
   }
 
+  /** Возвращает все заказы организации для staff-пользователя с доступом. */
   async findByTenant(actor: TenantActor, tenantId: number) {
     this.tenantAccessService.assertCanManageOrganization(actor, tenantId);
 
@@ -313,6 +342,12 @@ export class OrdersService {
     return orders.map((order) => this.mapOrder(order));
   }
 
+  /**
+   * Возвращает staff-очередь заказов.
+   *
+   * Без фильтра статуса показывает только активные операционные статусы, чтобы
+   * завершенные/отмененные заказы не засоряли рабочую очередь.
+   */
   async findQueue(
     actor: TenantActor,
     tenantId: number,
@@ -356,6 +391,7 @@ export class OrdersService {
     return orders.map((order) => this.mapOrder(order));
   }
 
+  /** Возвращает комментарии заказа после проверки доступа к его tenant. */
   async findComments(actor: TenantActor, orderId: number) {
     const existingOrder = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -386,6 +422,13 @@ export class OrdersService {
     return comments.map((comment) => this.mapOrderComment(comment));
   }
 
+  /**
+   * Возвращает timeline заказа.
+   *
+   * Сейчас timeline строится поверх comments table: системные события
+   * отличаются префиксом комментария, пользовательские комментарии остаются
+   * типом `COMMENT`.
+   */
   async findTimeline(
     actor: TenantActor,
     orderId: number,
@@ -413,6 +456,12 @@ export class OrdersService {
     return timeline.filter((entry) => entry.type === type);
   }
 
+  /**
+   * Меняет статус заказа с проверкой разрешенного перехода.
+   *
+   * Повторная установка текущего статуса идемпотентна и просто возвращает
+   * актуальный заказ без создания нового события.
+   */
   async updateStatus(
     actor: TenantActor,
     orderId: number,
@@ -477,6 +526,7 @@ export class OrdersService {
     return this.mapOrder(order);
   }
 
+  /** Применяет быстрое staff-действие через общий механизм смены статуса. */
   async applyAction(
     actor: TenantActor,
     orderId: number,
@@ -492,6 +542,12 @@ export class OrdersService {
     return this.updateStatus(actor, orderId, targetStatus, actorUserId);
   }
 
+  /**
+   * Обновляет staff-комментарий заказа.
+   *
+   * Пустая строка очищает `staffComment`; непустой комментарий дополнительно
+   * сохраняется в timeline как отдельная запись.
+   */
   async updateComment(
     actor: TenantActor,
     authorUserId: number,
@@ -537,6 +593,12 @@ export class OrdersService {
     return this.mapOrder(order as OrderView);
   }
 
+  /**
+   * Меняет статус оплаты с проверкой разрешенного перехода.
+   *
+   * При переходе в `PAID` проставляет `paidAt`; повторная установка текущего
+   * статуса идемпотентна.
+   */
   async updatePaymentStatus(
     actor: TenantActor,
     orderId: number,
@@ -603,10 +665,12 @@ export class OrdersService {
     return this.mapOrder(order);
   }
 
+  /** Временный номер до получения стабильного ID заказа из БД. */
   private createTemporaryOrderNumber(userId: number) {
     return `TMP-${Date.now()}-${userId}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
+  /** Приводит Prisma order shape к API response shape. */
   private mapOrder(order: OrderView) {
     return {
       id: order.id,
@@ -629,6 +693,7 @@ export class OrdersService {
     };
   }
 
+  /** Приводит comment entity к API response shape. */
   private mapOrderComment(comment: OrderCommentView) {
     return {
       id: comment.id,
@@ -645,6 +710,7 @@ export class OrdersService {
     };
   }
 
+  /** Отличает системные события timeline от обычных staff-комментариев. */
   private isOrderEventEntry(comment: string) {
     return (
       comment.startsWith('Статус изменен:') ||

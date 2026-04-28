@@ -9,16 +9,31 @@ import { ConfigService } from '@nestjs/config';
 const TURNSTILE_VERIFY_URL =
   'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+/**
+ * Серверная проверка Cloudflare Turnstile.
+ *
+ * Frontend-токен нельзя считать доверенным: сервис всегда проверяет его через
+ * Cloudflare `siteverify`. Если `TURNSTILE_SECRET_KEY` не задан, разрешается
+ * только dev mock-token из `CAPTCHA_MOCK_VALID_TOKEN`.
+ */
 @Injectable()
 export class TurnstileCaptchaService {
   private readonly logger = new Logger(TurnstileCaptchaService.name);
 
   constructor(private readonly configService: ConfigService) {}
 
+  /**
+   * Проверяет captcha-token регистрации.
+   *
+   * @param token Значение, полученное от Turnstile на frontend.
+   * @param remoteIp IP пользователя; передается Cloudflare как дополнительный сигнал.
+   * @throws UnauthorizedException если токен пустой, просрочен или отклонен.
+   * @throws InternalServerErrorException если запрос к Cloudflare не удался.
+   */
   async assertValidToken(token: string, remoteIp?: string): Promise<void> {
     const trimmed = token?.trim();
     if (!trimmed) {
-      throw new UnauthorizedException('Captcha token is invalid');
+      throw new UnauthorizedException('Токен капчи недействителен');
     }
 
     const secret = this.configService.get<string>('TURNSTILE_SECRET_KEY')?.trim();
@@ -30,7 +45,7 @@ export class TurnstileCaptchaService {
       if (trimmed === mockToken) {
         return;
       }
-      throw new UnauthorizedException('Captcha token is invalid');
+      throw new UnauthorizedException('Токен капчи недействителен');
     }
 
     const body = new URLSearchParams();
@@ -53,16 +68,16 @@ export class TurnstileCaptchaService {
       };
       if (!data.success) {
         this.logger.warn(
-          `Turnstile verification failed: ${JSON.stringify(data['error-codes'])}`,
+          `Проверка Turnstile не пройдена: ${JSON.stringify(data['error-codes'])}`,
         );
-        throw new UnauthorizedException('Captcha token is invalid');
+        throw new UnauthorizedException('Токен капчи недействителен');
       }
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      this.logger.error('Turnstile request failed', error);
-      throw new InternalServerErrorException('Captcha verification failed');
+      this.logger.error('Запрос проверки Turnstile завершился ошибкой', error);
+      throw new InternalServerErrorException('Не удалось проверить капчу');
     }
   }
 }

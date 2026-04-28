@@ -275,6 +275,7 @@ pnpm test:watch
 ```bash
 pnpm --filter backend prisma:migrate
 pnpm --filter backend prisma:generate
+pnpm --filter backend exec prisma studio --port 5555
 ```
 
 ## Рекомендуемый порядок первого запуска

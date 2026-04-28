@@ -12,7 +12,7 @@ import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { UsersService } from '../users/users.service';
-import { EmailSenderService } from './email-sender.service';
+import { EmailSenderService } from '../email/email-sender.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { TurnstileCaptchaService } from './turnstile-captcha.service';
 
@@ -68,7 +68,7 @@ describe('Сервис авторизации', () => {
   const turnstileCaptchaService = {
     assertValidToken: jest.fn().mockImplementation(async (token: string) => {
       if (token !== 'mock-captcha-token') {
-        throw new UnauthorizedException('Captcha token is invalid');
+        throw new UnauthorizedException('Токен капчи недействителен');
       }
     }),
   } as unknown as TurnstileCaptchaService;

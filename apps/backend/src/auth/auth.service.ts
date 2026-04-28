@@ -18,10 +18,18 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { JwtPayload } from './types/jwt-payload.type';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { ResendEmailCodeDto } from './dto/resend-email-code.dto';
-import { EmailSenderService } from './email-sender.service';
+import { EmailSenderService } from '../email/email-sender.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { TurnstileCaptchaService } from './turnstile-captcha.service';
 
+/**
+ * Основной доменный сервис auth-сценариев.
+ *
+ * Отвечает за регистрацию клиента, login, восстановление текущего пользователя,
+ * soft-delete аккаунта и подтверждение email одноразовым кодом. Здесь же
+ * собраны auth-specific лимиты, но инфраструктура писем и CAPTCHA вынесены в
+ * отдельные сервисы.
+ */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -62,6 +70,12 @@ export class AuthService {
     );
   }
 
+  /**
+   * Читает положительный integer из env или возвращает fallback.
+   *
+   * Используется для TTL/cooldown/rate-limit настроек, чтобы битое значение в
+   * окружении не выключило защиту случайным образом.
+   */
   private getLimitFromEnv(key: string, fallback: number): number {
     const rawValue = this.configService.get<string>(key);
     const parsed = Number(rawValue);
@@ -73,14 +87,17 @@ export class AuthService {
     return parsed;
   }
 
+  /** Генерирует шестизначный код подтверждения email. */
   private createEmailCode(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
+  /** Хеширует код перед записью в БД: raw-код никогда не хранится. */
   private hashEmailCode(code: string): string {
     return createHash('sha256').update(code).digest('hex');
   }
 
+  /** Сравнивает введенный код с hash из БД без утечек по таймингу. */
   private isEmailCodeValid(rawCode: string, codeHash: string): boolean {
     const actualHash = Buffer.from(this.hashEmailCode(rawCode));
     const expectedHash = Buffer.from(codeHash);
@@ -92,10 +109,12 @@ export class AuthService {
     return timingSafeEqual(actualHash, expectedHash);
   }
 
+  /** Возвращает HTTP 429 с единым для auth-сценариев форматом ошибки. */
   private tooManyRequests(message: string): HttpException {
     return new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
   }
 
+  /** Собирает минимальный JWT payload из user record. */
   private createPayload(user: {
     id: number;
     primaryTenantId: number | null;
@@ -110,15 +129,28 @@ export class AuthService {
     };
   }
 
+  /**
+   * Регистрирует клиента и запускает email-верификацию.
+   *
+   * Инварианты:
+   * - согласия и captcha обязательны;
+   * - телефон/email/login должны быть уникальными;
+   * - email остается неподтвержденным до успешного ввода кода;
+   * - в ответе `emailSentViaSmtp=false` означает, что код создан, но письмо не ушло.
+   */
   async register(dto: RegisterDto, context?: { ip?: string }) {
     if (!dto.consentToPrivacyPolicy) {
-      throw new BadRequestException('Privacy policy consent is required');
+      throw new BadRequestException(
+        'Необходимо согласие с политикой конфиденциальности',
+      );
     }
     if (!dto.consentToPersonalData) {
-      throw new BadRequestException('Personal data consent is required');
+      throw new BadRequestException(
+        'Необходимо согласие на обработку персональных данных',
+      );
     }
     if (!dto.agreementVersion.trim()) {
-      throw new BadRequestException('Agreement version is required');
+      throw new BadRequestException('Не указана версия согласия');
     }
     await this.turnstileCaptchaService.assertValidToken(
       dto.captchaToken,
@@ -126,7 +158,9 @@ export class AuthService {
     );
 
     if (!/^\+7\d{10}$/.test(dto.phone)) {
-      throw new BadRequestException('Phone must be a valid RU number');
+      throw new BadRequestException(
+        'Телефон должен быть номером РФ в формате +79XXXXXXXXX',
+      );
     }
 
     const registerEmailKey = `register:email:${dto.email.trim().toLowerCase()}`;
@@ -157,24 +191,26 @@ export class AuthService {
         ipLimit.retryAfterSec,
       );
       this.logger.warn(
-        `Register rate limit exceeded for phone=${dto.phone} email=${dto.email} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
+        `Превышен лимит регистрации для phone=${dto.phone} email=${dto.email} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
       );
-      throw this.tooManyRequests('Register is temporarily blocked');
+      throw this.tooManyRequests('Регистрация временно заблокирована');
     }
 
     const existingUser = await this.usersService.findByPhone(dto.phone);
     if (existingUser) {
-      throw new ConflictException('User with this phone already exists');
+      throw new ConflictException(
+        'Пользователь с таким телефоном уже существует',
+      );
     }
 
     const existingByEmail = await this.usersService.findByEmail(dto.email);
     if (existingByEmail) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException('Пользователь с таким email уже существует');
     }
 
     const existingByLogin = await this.usersService.findByLogin(dto.login);
     if (existingByLogin) {
-      throw new ConflictException('User with this login already exists');
+      throw new ConflictException('Пользователь с таким логином уже существует');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -207,8 +243,8 @@ export class AuthService {
     return {
       success: true,
       message: sentViaSmtp
-        ? 'Verification code sent to email'
-        : 'Verification code created (email not sent: SMTP not configured)',
+        ? 'Код подтверждения отправлен на email'
+        : 'Код подтверждения создан, но письмо не отправлено: SMTP не настроен',
       emailSentViaSmtp: sentViaSmtp,
       verificationRequired: true,
       verificationTtlSec: this.emailCodeTtlMinutes * 60,
@@ -216,6 +252,12 @@ export class AuthService {
     };
   }
 
+  /**
+   * Выполняет login по телефону, email или login.
+   *
+   * Для роли `user` вход запрещен до подтверждения email. Staff-пользователи
+   * входят без этого ограничения, так как создаются админским flow.
+   */
   async login(dto: LoginDto) {
     const identifier = dto.identifier.trim();
     const isPhone = /^\+7\d{10}$/.test(identifier);
@@ -227,20 +269,20 @@ export class AuthService {
         ? await this.usersService.findByEmail(identifier)
         : await this.usersService.findByLogin(identifier);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Неверный логин или пароль');
     }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Неверный логин или пароль');
     }
 
     if (!user.isActive) {
-      throw new UnauthorizedException('User is inactive');
+      throw new UnauthorizedException('Пользователь деактивирован');
     }
 
     if (user.role === UserRole.USER && !user.emailVerifiedAt) {
-      throw new UnauthorizedException('Email is not verified');
+      throw new UnauthorizedException('Email не подтвержден');
     }
 
     const payload = this.createPayload(user);
@@ -258,14 +300,20 @@ export class AuthService {
     };
   }
 
+  /**
+   * Возвращает профиль пользователя из активной JWT-сессии.
+   *
+   * Перечитывает пользователя из БД, чтобы soft-delete (`isActive=false`)
+   * сразу блокировал доступ даже со старым токеном.
+   */
   async me(userId: number) {
     const user = await this.usersService.findById(userId);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('Пользователь не найден');
     }
 
     if (!user.isActive) {
-      throw new UnauthorizedException('User is inactive');
+      throw new UnauthorizedException('Пользователь деактивирован');
     }
 
     return {
@@ -279,10 +327,16 @@ export class AuthService {
     };
   }
 
+  /**
+   * Soft-delete текущего пользователя.
+   *
+   * Запись остается в БД, но `isActive=false` запрещает дальнейший login и
+   * использование существующих JWT.
+   */
   async deleteMe(userId: number) {
     const user = await this.usersService.findById(userId);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('Пользователь не найден');
     }
 
     await this.usersService.deactivateById(userId);
@@ -290,6 +344,12 @@ export class AuthService {
     return { success: true };
   }
 
+  /**
+   * Подтверждает email одноразовым кодом.
+   *
+   * Проверяет rate limit, наличие активного кода, TTL, максимальное количество
+   * попыток и затем инвалидирует все активные коды пользователя.
+   */
   async verifyEmailCode(dto: VerifyEmailCodeDto, context?: { ip?: string }) {
     const verifyKey = `verify:${dto.email.trim().toLowerCase()}`;
     const verifyLimit = this.authRateLimiterService.hit(
@@ -312,15 +372,17 @@ export class AuthService {
         verifyIpLimit.retryAfterSec,
       );
       this.logger.warn(
-        `Verify rate limit exceeded for email=${dto.email} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
+        `Превышен лимит проверки email=${dto.email} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
       );
-      throw this.tooManyRequests('Too many verify attempts');
+      throw this.tooManyRequests('Слишком много попыток подтверждения');
     }
 
     const user = await this.usersService.findByEmail(dto.email);
     if (!user || user.role !== UserRole.USER) {
-      this.logger.warn(`Verify attempt for unknown email=${dto.email}`);
-      throw new UnauthorizedException('Invalid verification code');
+      this.logger.warn(
+        `Попытка подтверждения для неизвестного email=${dto.email}`,
+      );
+      throw new UnauthorizedException('Неверный код подтверждения');
     }
 
     if (user.emailVerifiedAt) {
@@ -344,27 +406,29 @@ export class AuthService {
       user.id,
     );
     if (!latestCode || latestCode.usedAt) {
-      this.logger.warn(`Verify attempt without active code for userId=${user.id}`);
-      throw new UnauthorizedException('Invalid verification code');
+      this.logger.warn(
+        `Попытка подтверждения без активного кода для userId=${user.id}`,
+      );
+      throw new UnauthorizedException('Неверный код подтверждения');
     }
 
     if (latestCode.attempts >= this.maxVerifyAttempts) {
       this.logger.warn(
-        `Max verify attempts exceeded for userId=${user.id}, codeId=${latestCode.id}`,
+        `Превышен лимит попыток подтверждения для userId=${user.id}, codeId=${latestCode.id}`,
       );
-      throw this.tooManyRequests('Too many verification attempts');
+      throw this.tooManyRequests('Слишком много попыток подтверждения');
     }
 
     if (latestCode.expiresAt.getTime() <= Date.now()) {
-      this.logger.warn(`Expired verification code for userId=${user.id}`);
-      throw new UnauthorizedException('Verification code expired');
+      this.logger.warn(`Истек срок действия кода для userId=${user.id}`);
+      throw new UnauthorizedException('Код подтверждения истек');
     }
 
     const isValidCode = this.isEmailCodeValid(dto.code, latestCode.codeHash);
     if (!isValidCode) {
       await this.usersService.incrementEmailVerificationAttempts(latestCode.id);
-      this.logger.warn(`Invalid verification code for userId=${user.id}`);
-      throw new UnauthorizedException('Invalid verification code');
+      this.logger.warn(`Неверный код подтверждения для userId=${user.id}`);
+      throw new UnauthorizedException('Неверный код подтверждения');
     }
 
     await this.usersService.invalidateActiveEmailVerificationCodes(user.id);
@@ -387,12 +451,18 @@ export class AuthService {
     };
   }
 
+  /**
+   * Повторно создает код подтверждения email.
+   *
+   * Для неизвестного или уже подтвержденного email возвращает нейтральный ответ,
+   * чтобы публичный API не раскрывал существование аккаунта.
+   */
   async resendEmailCode(dto: ResendEmailCodeDto) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user || user.role !== UserRole.USER || user.emailVerifiedAt) {
       return {
         success: true,
-        message: 'If account exists, code has been sent',
+        message: 'Если аккаунт существует, код был отправлен',
         resendAvailableInSec: this.resendCooldownSeconds,
       };
     }
@@ -407,9 +477,9 @@ export class AuthService {
       const retryInMs = availableAt - Date.now();
       if (retryInMs > 0) {
         this.logger.warn(
-          `Resend temporarily blocked for userId=${user.id} retryInMs=${retryInMs}`,
+          `Повторная отправка временно заблокирована для userId=${user.id} retryInMs=${retryInMs}`,
         );
-        throw this.tooManyRequests('Resend is temporarily blocked');
+        throw this.tooManyRequests('Повторная отправка временно заблокирована');
       }
     }
 
@@ -432,8 +502,8 @@ export class AuthService {
     return {
       success: true,
       message: sentViaSmtp
-        ? 'If account exists, code has been sent'
-        : 'If account exists, code was created (email not sent: SMTP not configured)',
+        ? 'Если аккаунт существует, код был отправлен'
+        : 'Если аккаунт существует, код был создан, но письмо не отправлено: SMTP не настроен',
       emailSentViaSmtp: sentViaSmtp,
       resendAvailableInSec: this.resendCooldownSeconds,
     };

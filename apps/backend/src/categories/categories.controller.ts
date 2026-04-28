@@ -20,12 +20,20 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+/**
+ * Admin API для категорий меню.
+ *
+ * Все маршруты закрыты JWT + RolesGuard и доступны только staff-ролям,
+ * которые могут управлять меню организаций. Проверка доступа к конкретному
+ * tenant выполняется в `CategoriesService` через `TenantAccessService`.
+ */
 @Controller('categories')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
+  /** Возвращает категории выбранной организации, отсортированные для меню. */
   @Get()
   findAll(
     @Req() req: { user: JwtPayload },
@@ -40,6 +48,7 @@ export class CategoriesController {
     );
   }
 
+  /** Создает новую категорию в организации из `CreateCategoryDto.tenantId`. */
   @Post()
   create(@Req() req: { user: JwtPayload }, @Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(
@@ -51,6 +60,7 @@ export class CategoriesController {
     );
   }
 
+  /** Частично обновляет категорию по ID. */
   @Patch(':categoryId')
   update(
     @Req() req: { user: JwtPayload },
@@ -67,6 +77,7 @@ export class CategoriesController {
     );
   }
 
+  /** Soft-delete категории: запись остается в БД, но `isActive=false`. */
   @Delete(':categoryId')
   remove(
     @Req() req: { user: JwtPayload },
