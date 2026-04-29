@@ -20,12 +20,19 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
+/**
+ * HTTP-контроллер управления продуктами меню.
+ *
+ * Все endpoints доступны только staff-ролям, которые могут управлять
+ * организациями через `TenantAccessService`.
+ */
 @Controller('products')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  /** Возвращает продукты выбранной организации с учетом прав текущего staff-пользователя. */
   @Get()
   findAll(
     @Req() req: { user: JwtPayload },
@@ -40,6 +47,7 @@ export class ProductsController {
     );
   }
 
+  /** Создает новый продукт в категории организации. */
   @Post()
   create(@Req() req: { user: JwtPayload }, @Body() dto: CreateProductDto) {
     return this.productsService.create(
@@ -51,6 +59,7 @@ export class ProductsController {
     );
   }
 
+  /** Обновляет карточку продукта по ID. */
   @Patch(':productId')
   update(
     @Req() req: { user: JwtPayload },
@@ -67,6 +76,7 @@ export class ProductsController {
     );
   }
 
+  /** Деактивирует продукт без физического удаления из базы. */
   @Delete(':productId')
   remove(
     @Req() req: { user: JwtPayload },

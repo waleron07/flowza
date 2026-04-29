@@ -1,10 +1,37 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { TenantAccessService } from '../tenants/tenant-access.service';
 import { ProductsService } from './products.service';
 
+/**
+ * Unit-тесты сервиса продуктов.
+ *
+ * Покрывают проверку прав на организацию, валидацию категории продукта и
+ * soft-delete через перевод продукта в неактивное состояние.
+ */
 describe('Сервис продуктов', () => {
+  type ProductCreateArgs = {
+    data: {
+      tenantId: number;
+      categoryId: number;
+      price: number;
+      currency: string;
+    };
+  };
+  type ProductUpdateArgs = {
+    where: { id: number };
+    data: {
+      name: string;
+      currency: string;
+    };
+  };
+
+  /** Моки Prisma-методов, через которые сервис работает с продуктами и категориями. */
   const productFindManyMock = jest.fn();
   const productCreateMock = jest.fn();
   const productFindUniqueMock = jest.fn();
@@ -39,10 +66,7 @@ describe('Сервис продуктов', () => {
     productFindManyMock.mockResolvedValue([{ id: 1, name: 'Маргарита' }]);
 
     await expect(
-      service.findAll(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        10,
-      ),
+      service.findAll({ role: UserRole.ADMIN, organizationIds: [10] }, 10),
     ).resolves.toEqual([{ id: 1, name: 'Маргарита' }]);
   });
 
@@ -73,13 +97,15 @@ describe('Сервис продуктов', () => {
       name: 'Маргарита',
       currency: 'RUB',
     });
-    expect(productCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        tenantId: 10,
-        categoryId: 5,
-        price: 500,
-        currency: 'RUB',
-      }),
+    const productCreateCalls = (
+      productCreateMock as jest.Mock<unknown, [ProductCreateArgs]>
+    ).mock.calls;
+    const createArgs = productCreateCalls[0]?.[0];
+    expect(createArgs.data).toMatchObject({
+      tenantId: 10,
+      categoryId: 5,
+      price: 500,
+      currency: 'RUB',
     });
   });
 
@@ -136,18 +162,21 @@ describe('Сервис продуктов', () => {
     });
 
     await expect(
-      service.update(
-        { role: UserRole.MODERATOR, organizationIds: [10] },
-        1,
-        { name: 'Обновлено', currency: 'USD' },
-      ),
-    ).resolves.toEqual({ id: 1, name: 'Обновлено', currency: 'USD' });
-    expect(productUpdateMock).toHaveBeenCalledWith({
-      where: { id: 1 },
-      data: expect.objectContaining({
+      service.update({ role: UserRole.MODERATOR, organizationIds: [10] }, 1, {
         name: 'Обновлено',
         currency: 'USD',
       }),
+    ).resolves.toEqual({ id: 1, name: 'Обновлено', currency: 'USD' });
+    const productUpdateCalls = (
+      productUpdateMock as jest.Mock<unknown, [ProductUpdateArgs]>
+    ).mock.calls;
+    const updateArgs = productUpdateCalls[0]?.[0];
+    expect(updateArgs).toMatchObject({
+      where: { id: 1 },
+    });
+    expect(updateArgs.data).toMatchObject({
+      name: 'Обновлено',
+      currency: 'USD',
     });
   });
 
@@ -155,11 +184,9 @@ describe('Сервис продуктов', () => {
     productFindUniqueMock.mockResolvedValue(null);
 
     await expect(
-      service.update(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        1,
-        { name: 'Обновлено' },
-      ),
+      service.update({ role: UserRole.ADMIN, organizationIds: [10] }, 1, {
+        name: 'Обновлено',
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -176,11 +203,9 @@ describe('Сервис продуктов', () => {
     });
 
     await expect(
-      service.update(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        1,
-        { categoryId: 6 },
-      ),
+      service.update({ role: UserRole.ADMIN, organizationIds: [10] }, 1, {
+        categoryId: 6,
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -192,10 +217,7 @@ describe('Сервис продуктов', () => {
     productUpdateMock.mockResolvedValue({ id: 1, isActive: false });
 
     await expect(
-      service.remove(
-        { role: UserRole.MODERATOR, organizationIds: [10] },
-        1,
-      ),
+      service.remove({ role: UserRole.MODERATOR, organizationIds: [10] }, 1),
     ).resolves.toEqual({ id: 1, isActive: false });
   });
 
@@ -205,10 +227,7 @@ describe('Сервис продуктов', () => {
     }) as never;
 
     await expect(
-      service.findAll(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        20,
-      ),
+      service.findAll({ role: UserRole.ADMIN, organizationIds: [10] }, 20),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

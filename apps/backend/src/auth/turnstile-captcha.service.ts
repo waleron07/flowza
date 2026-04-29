@@ -36,7 +36,9 @@ export class TurnstileCaptchaService {
       throw new UnauthorizedException('Токен капчи недействителен');
     }
 
-    const secret = this.configService.get<string>('TURNSTILE_SECRET_KEY')?.trim();
+    const secret = this.configService
+      .get<string>('TURNSTILE_SECRET_KEY')
+      ?.trim();
     const mockToken =
       this.configService.get<string>('CAPTCHA_MOCK_VALID_TOKEN') ??
       'mock-captcha-token';

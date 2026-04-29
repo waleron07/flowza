@@ -61,7 +61,7 @@ Web frontend будет строиться поверх backend API.
 - поднят `NestJS` backend внутри `apps/backend`;
 - подключены `PostgreSQL` и `Prisma`;
 - база запускается локально, миграции уже применяются через Prisma;
-- backend доступен локально на `http://localhost:3001`;
+- backend доступен локально на `http://localhost:3000`;
 - включен `CORS` для локальных frontend-приложений:
   - `http://localhost:5173` для `admin`
   - `http://localhost:5174` для `web`
@@ -111,6 +111,21 @@ Web frontend будет строиться поверх backend API.
 - На frontend уже есть глобальный organization context/store и tenant-aware корзина с правилом “одна корзина на одну организацию”.
 - Checkout уже интегрирован с реальным backend order API (`POST /orders`), а профиль пользователя получает историю заказов через `GET /orders/my`.
 - SEO/метаданные storefront уже синхронизируются из данных выбранной организации (`seoTitle`, `seoDescription`) через общий helper в layout.
+
+### Синхронизация с backend/OpenAPI (2026-04-29)
+
+- Default `VITE_API_URL` fallback в `shared/api/http.ts` обновлен на `http://localhost:3000`, как в текущем backend `main.ts` и `apps/swagger/openapi.json`.
+- Ссылка ручной проверки `/health` в профиле обновлена на `http://localhost:3000/health`.
+- Пользовательский API заказов синхронизирован с `GET /orders/my?tenantId=...`:
+  - `getMyOrdersRequest` принимает опциональный `tenantId`;
+  - `useMyOrdersQuery` включает `tenantId` в query key;
+  - профиль фильтрует историю заказов по активной организации, если она выбрана.
+- Клиентские auth/register/catalog/order контракты остаются совместимыми с backend:
+  - `POST /auth/register`, `POST /auth/register/verify-email`, `POST /auth/register/resend-email-code`;
+  - `POST /auth/login`, `GET /auth/me`, `DELETE /auth/me`;
+  - `GET /tenants`, `GET /tenants/:slug/catalog`;
+  - `POST /orders`, `GET /orders/my`.
+- Проверено: `pnpm --filter web typecheck`.
 
 ## 2.1. Организации и tenant-модель на web
 

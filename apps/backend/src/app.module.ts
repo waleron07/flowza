@@ -12,6 +12,12 @@ import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 
+/**
+ * Корневой модуль backend-приложения.
+ *
+ * Подключает глобальную конфигурацию, инфраструктурные модули и доменные
+ * модули API Flowza.
+ */
 @Module({
   imports: [
     ConfigModule.forRoot({

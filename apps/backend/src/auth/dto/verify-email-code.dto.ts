@@ -8,7 +8,7 @@ import { IsEmail, Matches } from 'class-validator';
  */
 export class VerifyEmailCodeDto {
   /** Email пользователя, ожидающего подтверждение. */
-  @IsEmail()
+  @IsEmail({}, { message: 'Email должен быть валидным адресом' })
   email: string;
 
   /** Шестизначный код из письма. */

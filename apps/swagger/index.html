@@ -229,7 +229,7 @@
         <p class="lead">
           Здесь собраны уже реализованные эндпоинты из backend: auth, tenants,
           categories, products, orders, users и health. Базовый сервер по
-          умолчанию настроен на <strong>http://localhost:3001</strong>.
+          умолчанию настроен на <strong>http://localhost:3000</strong>.
         </p>
         <div class="meta">
           <span>Bearer auth для защищенных маршрутов</span>
@@ -241,7 +241,7 @@
             id="server-url-input"
             class="server-panel__input"
             type="text"
-            value="http://localhost:3001"
+            value="http://localhost:3000"
             spellcheck="false"
             aria-label="Backend server URL"
           />
@@ -274,7 +274,7 @@
 
     <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
     <script>
-      const defaultServerUrl = "http://localhost:3001";
+      const defaultServerUrl = "http://localhost:3000";
       const storageKey = "flowza-swagger-server-url";
 
       function normalizeServerUrl(value) {

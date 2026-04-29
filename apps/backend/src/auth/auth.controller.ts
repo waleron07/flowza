@@ -33,8 +33,8 @@ export class AuthController {
 
   /** Выполняет login по email/телефону/login + password. */
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Req() req: { ip?: string }) {
+    return this.authService.login(dto, { ip: req.ip });
   }
 
   /** Подтверждает email одноразовым кодом и возвращает auth-session. */

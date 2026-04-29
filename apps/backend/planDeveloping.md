@@ -436,20 +436,27 @@ Response `200 OK` (нейтральный):
 - [x] После успешной верификации инвалидируются все активные коды пользователя.
 - [x] Добавлено security-логирование аномалий (частые/некорректные verify, блокировки resend/register).
 - [x] **Эксплуатация (development):** локальная доставка писем с кодом подтверждена через рабочий `Gmail SMTP` (`smtp.gmail.com`, `465`, `SMTP_SECURE=true`) и тестовую отправку письма.
-- [ ] **Эксплуатация (production):** требуется отдельный smoke-check для `start:prod` и подтверждение доставки на целевом окружении.
+- [x] **Эксплуатация (production runtime):** `pnpm --filter backend build` и `pnpm --filter backend start:prod` проверены локально в production-режиме на отдельном порту; `/health`, `/docs-json`, `x-request-id` и единый validation-ответ `POST /auth/register` работают.
+- [x] **Эксплуатация (production email delivery):** доставка письма на целевом production SMTP/inbox подтверждена вручную.
 
 ### Синхронизация с кодовой базой (актуализация 2026-04-12)
 
 - Регистрация: `Cloudflare Turnstile` на бэкенде; ответы регистрации/resend с **`emailSentViaSmtp`**.
 - Почта: при ошибке SMTP после ретраев — `500`, частично детализированное сообщение при ошибке аутентификации SMTP.
 - Почта: локальная SMTP-доставка подтверждена через `Gmail SMTP` с паролем приложения; тестовая отправка письма выполнена успешно.
-- Конфиг: локальные `.env`/`.env.development` используются для development-режима; production-запуск требует отдельной проверки загрузки env после сборки.
+- Конфиг: локальные `.env`/`.env.development` используются для development-режима; production runtime-smoke после сборки пройден локально, production email delivery подтверждена вручную на целевом SMTP/inbox.
+- Production startup: исправлен `start:prod` на entrypoint `dist/src/main.js`, который реально создается `nest build`.
 - Multi-tenant публичный слой уже реализован: `GET /tenants`, `GET /tenants/:slug/catalog` и выборка tenant-aware каталога без mock-контрактов.
 - Для staff-части уже реализованы management-endpoint'ы: `GET /tenants/manageable` и `GET /tenants/:tenantId/management`.
 - Схема и API расширены для organization showcase-полей: `heroTitle`, `heroSubtitle`, `heroDescription`, `heroImageUrl`, `seoTitle`, `seoDescription`, а также `Category.imageUrl`, `Product.imageUrl`, `Product.badgeText`.
 - Базовый order flow уже реализован: `POST /orders` и `GET /orders/my` работают поверх реальной tenant-aware модели заказа.
 - Prisma migration `20260412181500_add_organization_showcase_fields` уже включена в рабочий контур и обязательна для локальной БД перед запуском каталога.
-- Для ручной проверки готовых backend-контрактов добавлен отдельный Swagger UI в `apps/swagger`.
+- Для ручной проверки готовых backend-контрактов добавлен отдельный Swagger UI в `apps/swagger`; спецификация синхронизирована с текущими controller endpoints:
+  - добавлен корневой `GET /` smoke-check;
+  - default backend URL обновлен на `http://localhost:3000`;
+  - общий `ErrorResponse` приведен к текущему формату `success/statusCode/message/errorCode/details/timestamp/path`;
+  - отражены `401` для register CAPTCHA failure и `429` для login rate limit;
+  - проверено: JSON parse `apps/swagger/openapi.json`, `pnpm --filter swagger build`.
 
 ### Ближайший фокус backend (после закрытия auth + email)
 
@@ -457,7 +464,7 @@ Response `200 OK` (нейтральный):
 
 Приоритет ближайшей работы:
 
-1. подготовить и пройти production-smoke-check для email verification и `start:prod`;
+1. продолжить Этап 7.1 Security hardening: script/SQL injection проверки, audit log и расширенные security e2e;
 2. продолжить техническую зачистку тестовой инфраструктуры по мере добавления новых сценариев, чтобы не возвращать внешние зависимости в тесты.
 
 ### Ролевая модель и права создания пользователей
@@ -1342,7 +1349,7 @@ Backend полностью готов для управления меню.
 
 **Оценка:** 2-3 дня
 
-**Прогресс:** в работе | **Блокер:** нет | **Обновлено:** 2026-04-13
+**Прогресс:** в работе | **Блокер:** нет | **Обновлено:** 2026-04-29
 
 Этап 7 становится текущим активным этапом разработки после перепроверки Этапов 0-1 и закрытия функционального контура Этапов 2-6.
 
@@ -1398,12 +1405,18 @@ Backend становится пригодным для первого production
   - для каждого запроса выставляется и прокидывается correlation header `x-request-id`;
   - глобальный `HttpExceptionFilter` теперь логирует исключения с учетом `x-request-id`;
   - добавлена e2e-проверка наличия `x-request-id` в ответе;
+- пройден локальный production runtime-smoke:
+  - `pnpm --filter backend build` завершился успешно;
+  - `pnpm --filter backend start:prod` запускает production-сборку через `dist/src/main.js`;
+  - `GET /health` возвращает `200` и `x-request-id`;
+  - `GET /docs-json` возвращает OpenAPI-документ;
+  - `POST /auth/register` на невалидном payload возвращает единый `VALIDATION_ERROR` с русскими сообщениями DTO;
 - уже есть базовые unit, integration и e2e тесты для:
   - инициализации приложения
   - health-check
   - auth
   - staff-сценариев
-- следующим шагом этапа остается production-smoke-проверка.
+- production email delivery на целевом SMTP/inbox подтверждена вручную; следующим шагом остается продолжение Этапа 7.1 Security hardening.
 
 ---
 
@@ -1411,7 +1424,7 @@ Backend становится пригодным для первого production
 
 **Оценка:** 2-4 дня
 
-**Прогресс:** запланирован | **Блокер:** нет | **Обновлено:** 2026-04-13
+**Прогресс:** в работе | **Блокер:** нет | **Обновлено:** 2026-04-29
 
 Этот этап становится следующим обязательным шагом параллельно развитию multi-tenant модели.
 
@@ -1473,13 +1486,56 @@ Backend становится существенно устойчивее к scri
 - уже реализована авторизация через JWT и проверка ролей;
 - уже есть проверки активности пользователя и бизнес-валидации в auth-сценариях;
 - tenant-aware и security-сценарии частично заложены на уровне архитектуры и Prisma-моделей;
+- начат отдельный слой anti-bruteforce для login:
+  - `POST /auth/login` лимитируется по `identifier` и IP до поиска пользователя;
+  - лимиты настраиваются через `AUTH_LOGIN_RATE_LIMIT` и `AUTH_LOGIN_RATE_WINDOW_SEC`;
+  - превышение лимита возвращает нейтральный `429` без раскрытия существования аккаунта;
+  - добавлены unit/e2e проверки на `429` для частых login-запросов;
+- добавлены первые расширенные security integration-проверки для injection payload:
+  - SQL-like `slug` в `GET /tenants/:slug/catalog` обрабатывается как обычная строка и не запускает выборку категорий/продуктов при `404`;
+  - SQL-like `search` в `GET /orders/queue` передается в Prisma как строковый `contains`-фильтр, а не как raw query;
+  - подтверждено отсутствие `$queryRaw` / `$executeRaw` в текущем backend-коде;
+- начат audit log для auth-событий:
+  - добавлен `AuditService`, который пишет события в существующую модель `AuditLog`;
+  - audit write не ломает основной auth-flow при ошибке persistence;
+  - `POST /auth/login` пишет события `AUTH_LOGIN_SUCCESS`, `AUTH_LOGIN_FAILED`, `AUTH_LOGIN_RATE_LIMITED`, `AUTH_LOGIN_INACTIVE_USER`, `AUTH_LOGIN_UNVERIFIED_EMAIL`;
+  - `POST /auth/register` пишет события `AUTH_REGISTER_SUCCESS`, `AUTH_REGISTER_RATE_LIMITED`;
+  - `POST /auth/register/verify-email` пишет события `AUTH_VERIFY_EMAIL_SUCCESS`, `AUTH_VERIFY_EMAIL_FAILED`, `AUTH_VERIFY_EMAIL_RATE_LIMITED`, `AUTH_VERIFY_EMAIL_EXPIRED`, `AUTH_VERIFY_EMAIL_ALREADY_VERIFIED`;
+  - `POST /auth/register/resend-email-code` пишет события `AUTH_RESEND_EMAIL_SENT`, `AUTH_RESEND_EMAIL_RATE_LIMITED`;
+  - добавлены unit/e2e проверки audit-событий для успешного входа, неверного пароля и rate limit;
+  - добавлены unit-проверки audit-событий для регистрации, email verification и resend cooldown;
+- начат audit log для staff security-событий:
+  - `POST /users/staff` пишет событие `STAFF_USER_CREATED` при успешном создании сотрудника;
+  - запрещенные попытки создания staff-пользователя по роли пишут `STAFF_USER_CREATE_FORBIDDEN_ROLE`;
+  - запрещенные попытки назначения в недоступную организацию пишут `STAFF_USER_CREATE_FORBIDDEN_ORGANIZATION`;
+  - добавлены unit-проверки staff audit-событий;
+- начат audit log для order security-событий:
+  - `PATCH /orders/:id/status` пишет `ORDER_STATUS_CHANGED` при успешной смене статуса;
+  - запрещенный status transition пишет `ORDER_STATUS_CHANGE_FORBIDDEN`;
+  - `PATCH /orders/:id/payment-status` пишет `ORDER_PAYMENT_STATUS_CHANGED` при успешной смене статуса оплаты;
+  - запрещенный payment status transition пишет `ORDER_PAYMENT_STATUS_CHANGE_FORBIDDEN`;
+  - `PATCH /orders/:id/comment` пишет `ORDER_COMMENT_UPDATED` или `ORDER_COMMENT_CLEARED`;
+  - запрещенный tenant-доступ в order mutation пишет `ORDER_ACCESS_FORBIDDEN`;
+  - подключен `AuditModule` к `OrdersModule`, добавлены unit-проверки order audit-событий;
+  - проверено: `pnpm --filter backend test -- orders.service.spec.ts`, `pnpm --filter backend test`, `pnpm --filter backend typecheck`, `pnpm --filter backend build`;
+- снят накопленный lint-блокер в `auth`, `categories`, `products`, `users`, e2e/integration тестах:
+  - убраны небезопасные `any`/unbound-method ожидания в audit/security тестах;
+  - типизированы проблемные controller/service mocks;
+  - `UsersService` переведен с `any`-кастов Prisma на минимальные typed repository/transaction контракты;
+  - проверено: `pnpm --filter backend lint`, `pnpm --filter backend test`, `pnpm --filter backend typecheck`, `pnpm --filter backend build`;
+- добавлены расширенные security e2e тесты без проверки CAPTCHA:
+  - неизвестный `login` получает нейтральный `401` и пишет `AUTH_LOGIN_FAILED` с entity `Auth`;
+  - пользователь с неподтвержденным email не может войти и пишет `AUTH_LOGIN_UNVERIFIED_EMAIL`;
+  - login блокируется не только по identifier, но и по IP-rate-limit;
+  - поврежденный Bearer JWT возвращает `401` для `GET /auth/me` и `POST /users/staff`;
+  - CAPTCHA в этих сценариях остается тестовым mocked dependency и отдельно не проверяется;
+  - проверено: `pnpm --filter backend test:e2e -- auth.e2e-spec.ts`, `pnpm --filter backend test:e2e`, `pnpm --filter backend lint`, `pnpm --filter backend test`, `pnpm --filter backend typecheck`, `pnpm --filter backend build`;
 - отдельный слой security hardening:
-  - rate limiting
-  - anti-bruteforce
-  - audit log
+  - расширенное rate limiting
+  - расширенный anti-bruteforce
   - captcha
   - расширенные security e2e тесты
-    пока еще не реализован и остается обязательным следующим шагом.
+    уже начаты; следующим обязательным решением остается production-политика CAPTCHA.
 
 ## 7. Минимальный список тестов для MVP
 
@@ -1629,3 +1685,7 @@ Backend для этого проекта нужно строить не прос
 - на каждом этапе сначала тесты, потом код.
 
 Такой подход даст более надежный результат, снизит риск архитектурных ошибок и упростит дальнейшее развитие продукта.
+
+## 13. Открытые решения перед production
+
+- **CAPTCHA:** сейчас используется тестовая/замоканная CAPTCHA в e2e-сценариях, поэтому ее не нужно считать production-проверенной. Перед production нужно отдельно определить финальную политику CAPTCHA: оставить Cloudflare Turnstile или выбрать другой provider, какие домены/ключи использовать, какие endpoints защищать, как настраивать bypass для e2e/локальной разработки и какие алерты/метрики нужны по ошибкам проверки.

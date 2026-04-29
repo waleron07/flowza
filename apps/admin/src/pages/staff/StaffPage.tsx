@@ -21,7 +21,7 @@ type StaffFormValues = {
   email: string
   password: string
   role: UserRole
-  tenantId: string
+  organizationIds: string
 }
 
 const initialValues: StaffFormValues = {
@@ -30,7 +30,7 @@ const initialValues: StaffFormValues = {
   email: '',
   password: '',
   role: userRoles.operator,
-  tenantId: '',
+  organizationIds: '',
 }
 
 function getAvailableRoles(currentRole: UserRole | undefined) {
@@ -78,12 +78,17 @@ export function StaffPage() {
     role: Yup.mixed<UserRole>()
       .oneOf(availableRoles, 'Выберите доступную роль')
       .required('Выберите роль'),
-    tenantId: isSuperAdmin
+    organizationIds: isSuperAdmin
       ? Yup.string()
           .test(
-            'tenant-id-format',
-            'tenantId должен быть положительным числом',
-            (value) => !value || /^\d+$/.test(value),
+            'organization-ids-format',
+            'organizationIds должен быть списком положительных чисел через запятую',
+            (value) =>
+              !value ||
+              value
+                .split(',')
+                .map((item) => item.trim())
+                .every((item) => /^\d+$/.test(item)),
           )
       : Yup.string(),
   })
@@ -114,14 +119,23 @@ export function StaffPage() {
             try {
               helpers.setStatus(undefined)
 
+              const organizationIds = values.organizationIds
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .map(Number)
+
               const payload: CreateStaffUserDto = {
                 phone: values.phone,
                 login: values.login,
                 email: values.email,
                 password: values.password,
                 role: values.role,
-                ...(isSuperAdmin && values.tenantId
-                  ? { tenantId: Number(values.tenantId) }
+                ...(isSuperAdmin && organizationIds.length > 0
+                  ? {
+                      primaryTenantId: organizationIds[0],
+                      organizationIds,
+                    }
                   : {}),
               }
 
@@ -222,17 +236,17 @@ export function StaffPage() {
 
                   {isSuperAdmin ? (
                     <TextField
-                      error={Boolean(touched.tenantId && errors.tenantId)}
+                      error={Boolean(touched.organizationIds && errors.organizationIds)}
                       helperText={
-                        touched.tenantId && errors.tenantId
-                          ? errors.tenantId
-                          : 'Необязательно. Можно указать tenantId для новой организации.'
+                        touched.organizationIds && errors.organizationIds
+                          ? errors.organizationIds
+                          : 'Необязательно. Укажите ID организаций через запятую, например 10, 11.'
                       }
-                      label="Tenant ID"
-                      name="tenantId"
+                      label="Organization IDs"
+                      name="organizationIds"
                       onBlur={handleBlur}
                       onChange={handleChange}
-                      value={values.tenantId}
+                      value={values.organizationIds}
                     />
                   ) : null}
                 </Stack>

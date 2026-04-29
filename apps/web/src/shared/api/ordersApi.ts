@@ -13,9 +13,11 @@ export async function createOrderRequest(payload: CreateOrderRequestDto) {
   }
 }
 
-export async function getMyOrdersRequest() {
+export async function getMyOrdersRequest(tenantId?: number) {
   try {
-    const response = await httpClient.get<Order[]>("/orders/my");
+    const response = await httpClient.get<Order[]>("/orders/my", {
+      params: tenantId ? { tenantId } : undefined,
+    });
 
     return response.data;
   } catch (error) {
@@ -23,10 +25,10 @@ export async function getMyOrdersRequest() {
   }
 }
 
-export function useMyOrdersQuery(enabled = true) {
+export function useMyOrdersQuery(tenantId?: number, enabled = true) {
   return useQuery({
-    queryKey: ["my-orders"],
-    queryFn: getMyOrdersRequest,
+    queryKey: ["my-orders", tenantId ?? "all"],
+    queryFn: () => getMyOrdersRequest(tenantId),
     enabled,
     staleTime: 30_000,
   });

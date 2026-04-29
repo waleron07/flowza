@@ -4,7 +4,14 @@ import { PrismaService } from '../database/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { TenantAccessService } from './tenant-access.service';
 
+/**
+ * Unit-тесты сервиса организаций.
+ *
+ * Покрывают публичные и админские выборки, создание/обновление организаций и
+ * ограничения доступа для staff-ролей.
+ */
 describe('Сервис организаций', () => {
+  /** Моки Prisma-методов, через которые сервис работает с организациями и меню. */
   const tenantFindManyMock = jest.fn();
   const tenantCreateMock = jest.fn();
   const tenantFindFirstMock = jest.fn();

@@ -5,9 +5,16 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
 
+/**
+ * Unit-тесты HTTP-контроллера продуктов.
+ *
+ * Проверяют, что контроллер передает роль и доступные организации текущего
+ * пользователя в сервисный слой без собственной бизнес-логики.
+ */
 describe('Контроллер продуктов', () => {
   let controller: ProductsController;
-  let service: {
+
+  type ProductsServiceMock = {
     findAll: jest.Mock<
       Promise<Array<{ id: number; name: string }>>,
       [{ role: UserRole; organizationIds: number[] }, number]
@@ -26,12 +33,31 @@ describe('Контроллер продуктов', () => {
     >;
   };
 
+  /** Мок сервисного слоя, изолирующий контроллер от Prisma и проверки прав. */
+  let service: ProductsServiceMock;
+
   beforeEach(async () => {
     service = {
-      findAll: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
+      findAll: jest.fn<
+        Promise<Array<{ id: number; name: string }>>,
+        [{ role: UserRole; organizationIds: number[] }, number]
+      >(),
+      create: jest.fn<
+        Promise<{ id: number; name: string; currency?: string }>,
+        [{ role: UserRole; organizationIds: number[] }, CreateProductDto]
+      >(),
+      update: jest.fn<
+        Promise<{ id: number; name: string; currency?: string }>,
+        [
+          { role: UserRole; organizationIds: number[] },
+          number,
+          UpdateProductDto,
+        ]
+      >(),
+      remove: jest.fn<
+        Promise<{ id: number; isActive: boolean }>,
+        [{ role: UserRole; organizationIds: number[] }, number]
+      >(),
     };
 
     const module: TestingModule = await Test.createTestingModule({

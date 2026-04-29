@@ -12,7 +12,7 @@ pnpm --filter swagger dev
 
 ## Переключение backend URL
 
-По умолчанию Swagger использует `http://localhost:3001`, но URL можно менять прямо в UI.
+По умолчанию Swagger использует `http://localhost:3000`, но URL можно менять прямо в UI.
 
 - введите новый backend URL в верхнем поле;
 - нажмите `Применить`;
@@ -32,4 +32,4 @@ http://localhost:5175/?server=http://localhost:3002
 
 ## Базовый backend
 
-Спецификация по умолчанию указывает на `http://localhost:3001`.
+Спецификация по умолчанию указывает на `http://localhost:3000`.

@@ -14,5 +14,6 @@ export type CreateStaffUserDto = {
   email: string
   password: string
   role: UserRole
-  tenantId?: number
+  primaryTenantId?: number
+  organizationIds?: number[]
 }

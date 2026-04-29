@@ -11,6 +11,7 @@ import { UserRole } from '../../src/common/enums/user-role.enum';
 import { AuthRateLimiterService } from '../../src/auth/auth-rate-limiter.service';
 import { TurnstileCaptchaService } from '../../src/auth/turnstile-captcha.service';
 import { configureApp } from '../../src/app.setup';
+import { AuditService } from '../../src/audit/audit.service';
 
 interface InMemoryUser {
   id: number;
@@ -36,6 +37,13 @@ interface InMemoryEmailVerificationCode {
   attempts: number;
   createdAt: Date;
 }
+
+type AuditLogInput = {
+  userId?: number | null;
+  action: string;
+  entity: string;
+  entityId: number;
+};
 
 class InMemoryUsersService {
   private users: InMemoryUser[] = [];
@@ -188,10 +196,19 @@ describe('E2E проверки авторизации', () => {
   let app: INestApplication<App>;
   let usersService: InMemoryUsersService;
   let verificationCodesByEmail: Map<string, string>;
+  let rateLimiterHitMock: jest.Mock;
+  let auditLogMock: jest.Mock;
+
+  const getAuditLogInputs = () =>
+    auditLogMock.mock.calls.map(([input]) => input as AuditLogInput);
 
   beforeEach(async () => {
     usersService = new InMemoryUsersService();
     verificationCodesByEmail = new Map<string, string>();
+    rateLimiterHitMock = jest
+      .fn()
+      .mockReturnValue({ allowed: true, retryAfterSec: 0 });
+    auditLogMock = jest.fn().mockResolvedValue(undefined);
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -210,7 +227,11 @@ describe('E2E проверки авторизации', () => {
       })
       .overrideProvider(AuthRateLimiterService)
       .useValue({
-        hit: jest.fn().mockReturnValue({ allowed: true, retryAfterSec: 0 }),
+        hit: rateLimiterHitMock,
+      })
+      .overrideProvider(AuditService)
+      .useValue({
+        log: auditLogMock,
       })
       .overrideProvider(TurnstileCaptchaService)
       .useValue({
@@ -345,7 +366,7 @@ describe('E2E проверки авторизации', () => {
       success: false,
       statusCode: 400,
       errorCode: 'VALIDATION_ERROR',
-      message: 'Validation failed',
+      message: 'Ошибка валидации',
       path: '/auth/register',
     });
     expect(Array.isArray(body.details)).toBe(true);
@@ -370,6 +391,12 @@ describe('E2E проверки авторизации', () => {
 
       const loginBody = loginResponse.body as { accessToken: string };
       expect(loginBody.accessToken).toBeDefined();
+      const successAudit = getAuditLogInputs().find(
+        (entry) => entry.action === 'AUTH_LOGIN_SUCCESS',
+      );
+      expect(successAudit?.entity).toBe('User');
+      expect(typeof successAudit?.userId).toBe('number');
+      expect(typeof successAudit?.entityId).toBe('number');
     });
 
     it('возвращает ошибку при неверном пароле', async () => {
@@ -386,6 +413,103 @@ describe('E2E проверки авторизации', () => {
           password: 'wrong-password',
         })
         .expect(401);
+
+      const failedAudit = getAuditLogInputs().find(
+        (entry) => entry.action === 'AUTH_LOGIN_FAILED',
+      );
+      expect(failedAudit?.entity).toBe('User');
+      expect(typeof failedAudit?.userId).toBe('number');
+      expect(typeof failedAudit?.entityId).toBe('number');
+    });
+
+    it('возвращает нейтральную ошибку для неизвестного login и пишет audit', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          identifier: 'unknown_login',
+          password: 'password123',
+        })
+        .expect(401);
+
+      expect(auditLogMock).toHaveBeenCalledWith({
+        action: 'AUTH_LOGIN_FAILED',
+        entity: 'Auth',
+        entityId: 0,
+      });
+    });
+
+    it('блокирует login пользователя до подтверждения email', async () => {
+      await registerUser({
+        phone: '+79990000019',
+        email: 'unverified-e2e@example.com',
+        login: 'unverified_e2e',
+      });
+
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          identifier: '+79990000019',
+          password: 'password123',
+        })
+        .expect(401);
+
+      const unverifiedAudit = getAuditLogInputs().find(
+        (entry) => entry.action === 'AUTH_LOGIN_UNVERIFIED_EMAIL',
+      );
+      expect(unverifiedAudit?.entity).toBe('User');
+      expect(typeof unverifiedAudit?.userId).toBe('number');
+      expect(typeof unverifiedAudit?.entityId).toBe('number');
+    });
+
+    it('возвращает 429 при превышении лимита попыток входа', async () => {
+      rateLimiterHitMock.mockReturnValueOnce({
+        allowed: false,
+        retryAfterSec: 60,
+      });
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          identifier: '+79990000999',
+          password: 'password123',
+        })
+        .expect(429);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        statusCode: 429,
+        message: 'Вход временно заблокирован',
+      });
+      expect(auditLogMock).toHaveBeenCalledWith({
+        action: 'AUTH_LOGIN_RATE_LIMITED',
+        entity: 'Auth',
+        entityId: 0,
+      });
+    });
+
+    it('учитывает IP-rate-limit при login', async () => {
+      rateLimiterHitMock
+        .mockReturnValueOnce({ allowed: true, retryAfterSec: 0 })
+        .mockReturnValueOnce({ allowed: false, retryAfterSec: 45 });
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          identifier: '+79990000998',
+          password: 'password123',
+        })
+        .expect(429);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        statusCode: 429,
+        message: 'Вход временно заблокирован',
+      });
+      expect(auditLogMock).toHaveBeenCalledWith({
+        action: 'AUTH_LOGIN_RATE_LIMITED',
+        entity: 'Auth',
+        entityId: 0,
+      });
     });
 
     it('возвращает ошибку для неактивного пользователя', async () => {
@@ -432,6 +556,13 @@ describe('E2E проверки авторизации', () => {
       await request(app.getHttpServer()).get('/auth/me').expect(401);
     });
 
+    it('возвращает 401 для поврежденного Bearer token', async () => {
+      await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', 'Bearer invalid.jwt.token')
+        .expect(401);
+    });
+
     it('возвращает 401 для деактивированного пользователя', async () => {
       const { accessToken } = await registerAndVerify({
         phone: '+79990000005',
@@ -459,6 +590,20 @@ describe('E2E проверки авторизации', () => {
           phone: '+79990000012',
           email: 'staff-no-token@example.com',
           login: 'staff_no_token',
+          password: 'password123',
+          role: UserRole.OPERATOR,
+        })
+        .expect(401);
+    });
+
+    it('возвращает 401 при создании staff-пользователя с поврежденным токеном', async () => {
+      await request(app.getHttpServer())
+        .post('/users/staff')
+        .set('Authorization', 'Bearer invalid.jwt.token')
+        .send({
+          phone: '+79990000020',
+          email: 'staff-invalid-token@example.com',
+          login: 'staff_invalid_token',
           password: 'password123',
           role: UserRole.OPERATOR,
         })

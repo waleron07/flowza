@@ -3,6 +3,7 @@ import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
 import { UserRole } from '../common/enums/user-role.enum';
 
+/** Создает типовую организацию для controller-тестов с возможностью переопределений. */
 function createTenantFixture(
   overrides?: Partial<Awaited<ReturnType<TenantsService['createTenant']>>>,
 ) {
@@ -31,6 +32,7 @@ function createTenantFixture(
   };
 }
 
+/** Создает мок `TenantsService`, чтобы тестировать только делегирование контроллера. */
 function createServiceMock() {
   return {
     findPublicCatalogBySlug: jest.fn<
@@ -68,8 +70,16 @@ function createServiceMock() {
   };
 }
 
+/**
+ * Unit-тесты контроллера организаций.
+ *
+ * Проверяют, что HTTP-слой корректно передает параметры маршрута, body и actor
+ * из JWT payload в сервис организаций.
+ */
 describe('Контроллер организаций', () => {
   let controller: TenantsController;
+
+  /** Мок сервисного слоя, изолирующий контроллер от Prisma и бизнес-правил. */
   let service: ReturnType<typeof createServiceMock>;
 
   beforeEach(async () => {

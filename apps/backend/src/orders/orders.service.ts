@@ -9,6 +9,7 @@ import { TenantAccessService } from '../tenants/tenant-access.service';
 import { TenantActor } from '../tenants/types/tenant-actor.type';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { generateOrderNumber } from './utils/order-number.util';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * Быстрые действия staff-очереди заказов.
@@ -92,6 +93,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantAccessService: TenantAccessService,
+    private readonly auditService: AuditService,
   ) {}
 
   private readonly orderSelect = {
@@ -481,10 +483,20 @@ export class OrdersService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    this.tenantAccessService.assertCanManageOrganization(
-      actor,
-      existingOrder.tenantId,
-    );
+    try {
+      this.tenantAccessService.assertCanManageOrganization(
+        actor,
+        existingOrder.tenantId,
+      );
+    } catch (error) {
+      await this.auditService.log({
+        userId: actorUserId,
+        action: 'ORDER_ACCESS_FORBIDDEN',
+        entity: 'Order',
+        entityId: existingOrder.id,
+      });
+      throw error;
+    }
 
     if (existingOrder.status === status) {
       const order = await this.prisma.order.findUnique({
@@ -500,6 +512,12 @@ export class OrdersService {
     }
 
     if (!this.allowedStatusTransitions[existingOrder.status].includes(status)) {
+      await this.auditService.log({
+        userId: actorUserId,
+        action: 'ORDER_STATUS_CHANGE_FORBIDDEN',
+        entity: 'Order',
+        entityId: existingOrder.id,
+      });
       throw new BadRequestException(
         `Переход из статуса ${existingOrder.status} в ${status} запрещен`,
       );
@@ -521,6 +539,12 @@ export class OrdersService {
         },
       },
       select: this.orderSelect,
+    });
+    await this.auditService.log({
+      userId: actorUserId,
+      action: 'ORDER_STATUS_CHANGED',
+      entity: 'Order',
+      entityId: orderId,
     });
 
     return this.mapOrder(order);
@@ -566,10 +590,20 @@ export class OrdersService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    this.tenantAccessService.assertCanManageOrganization(
-      actor,
-      existingOrder.tenantId,
-    );
+    try {
+      this.tenantAccessService.assertCanManageOrganization(
+        actor,
+        existingOrder.tenantId,
+      );
+    } catch (error) {
+      await this.auditService.log({
+        userId: authorUserId,
+        action: 'ORDER_ACCESS_FORBIDDEN',
+        entity: 'Order',
+        entityId: existingOrder.id,
+      });
+      throw error;
+    }
 
     const trimmedComment = comment?.trim();
     const order = await this.prisma.order.update({
@@ -588,6 +622,14 @@ export class OrdersService {
           : {}),
       } as never,
       select: this.orderSelect,
+    });
+    await this.auditService.log({
+      userId: authorUserId,
+      action: trimmedComment
+        ? 'ORDER_COMMENT_UPDATED'
+        : 'ORDER_COMMENT_CLEARED',
+      entity: 'Order',
+      entityId: orderId,
     });
 
     return this.mapOrder(order as OrderView);
@@ -618,10 +660,20 @@ export class OrdersService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    this.tenantAccessService.assertCanManageOrganization(
-      actor,
-      existingOrder.tenantId,
-    );
+    try {
+      this.tenantAccessService.assertCanManageOrganization(
+        actor,
+        existingOrder.tenantId,
+      );
+    } catch (error) {
+      await this.auditService.log({
+        userId: actorUserId,
+        action: 'ORDER_ACCESS_FORBIDDEN',
+        entity: 'Order',
+        entityId: existingOrder.id,
+      });
+      throw error;
+    }
 
     if (existingOrder.paymentStatus === paymentStatus) {
       const order = await this.prisma.order.findUnique({
@@ -641,6 +693,12 @@ export class OrdersService {
         existingOrder.paymentStatus
       ].includes(paymentStatus)
     ) {
+      await this.auditService.log({
+        userId: actorUserId,
+        action: 'ORDER_PAYMENT_STATUS_CHANGE_FORBIDDEN',
+        entity: 'Order',
+        entityId: existingOrder.id,
+      });
       throw new BadRequestException(
         `Переход статуса оплаты из ${existingOrder.paymentStatus} в ${paymentStatus} запрещен`,
       );
@@ -660,6 +718,12 @@ export class OrdersService {
         },
       },
       select: this.orderSelect,
+    });
+    await this.auditService.log({
+      userId: actorUserId,
+      action: 'ORDER_PAYMENT_STATUS_CHANGED',
+      entity: 'Order',
+      entityId: orderId,
     });
 
     return this.mapOrder(order);

@@ -156,6 +156,7 @@ export function OrganizationsPage() {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedTenantId((current) => current ?? organizationsQuery.data[0].id);
   }, [organizationsQuery.data]);
 
@@ -165,6 +166,7 @@ export function OrganizationsPage() {
     }
 
     const { tenant } = managementQuery.data;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrganizationForm({
       name: tenant.name,
       slug: tenant.slug,
@@ -188,8 +190,14 @@ export function OrganizationsPage() {
     setProductForm(emptyProductForm);
   }, [managementQuery.data]);
 
-  const categories = managementQuery.data?.categories ?? [];
-  const products = managementQuery.data?.products ?? [];
+  const categories = useMemo(
+    () => managementQuery.data?.categories ?? [],
+    [managementQuery.data?.categories],
+  );
+  const products = useMemo(
+    () => managementQuery.data?.products ?? [],
+    [managementQuery.data?.products],
+  );
   const filteredCategories = useMemo(() => {
     const query = categorySearchQuery.trim().toLowerCase();
 
@@ -250,8 +258,8 @@ export function OrganizationsPage() {
 
     const confirmed = window.confirm(
       category.isActive
-        ? `Деактивировать категорию \"${category.name}\"?`
-        : `Активировать категорию \"${category.name}\"?`,
+        ? `Деактивировать категорию "${category.name}"?`
+        : `Активировать категорию "${category.name}"?`,
     );
 
     if (!confirmed) {
@@ -295,8 +303,8 @@ export function OrganizationsPage() {
 
     const confirmed = window.confirm(
       product.isActive
-        ? `Деактивировать товар \"${product.name}\"?`
-        : `Активировать товар \"${product.name}\"?`,
+        ? `Деактивировать товар "${product.name}"?`
+        : `Активировать товар "${product.name}"?`,
     );
 
     if (!confirmed) {

@@ -1,7 +1,7 @@
 import { Box } from '@mui/material'
 import type { FormikHelpers } from 'formik'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
-import { memo, useCallback, useMemo, useRef, type RefObject } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
 
 type RegisterTurnstileProps = {
   siteKey: string
@@ -22,8 +22,11 @@ export const RegisterTurnstile = memo(function RegisterTurnstile({
 }: RegisterTurnstileProps) {
   const setFieldValueRef = useRef(setFieldValue)
   const setFieldTouchedRef = useRef(setFieldTouched)
-  setFieldValueRef.current = setFieldValue
-  setFieldTouchedRef.current = setFieldTouched
+
+  useEffect(() => {
+    setFieldValueRef.current = setFieldValue
+    setFieldTouchedRef.current = setFieldTouched
+  }, [setFieldTouched, setFieldValue])
 
   const options = useMemo(() => ({ language: 'ru' as const }), [])
 

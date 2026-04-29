@@ -9,7 +9,9 @@ export function generateOrderNumber(
   issuedAt: Date = new Date(),
 ): string {
   if (!Number.isInteger(sequence) || sequence <= 0) {
-    throw new Error('Порядковый номер заказа должен быть положительным целым числом');
+    throw new Error(
+      'Порядковый номер заказа должен быть положительным целым числом',
+    );
   }
 
   const year = issuedAt.getUTCFullYear();

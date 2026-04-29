@@ -8,6 +8,6 @@ import { IsEmail } from 'class-validator';
  */
 export class ResendEmailCodeDto {
   /** Email, указанный при регистрации. */
-  @IsEmail()
+  @IsEmail({}, { message: 'Email должен быть валидным адресом' })
   email: string;
 }

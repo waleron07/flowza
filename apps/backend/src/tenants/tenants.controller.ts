@@ -19,15 +19,23 @@ import { JwtPayload } from '../auth/types/jwt-payload.type';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 
+/**
+ * HTTP-контроллер организаций.
+ *
+ * Содержит публичные endpoints каталога и защищенные endpoints управления
+ * организациями для staff-пользователей.
+ */
 @Controller('tenants')
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
+  /** Возвращает публичный каталог активной организации по slug. */
   @Get(':slug/catalog')
   getPublicCatalog(@Param('slug') slug: string) {
     return this.tenantsService.findPublicCatalogBySlug(slug);
   }
 
+  /** Возвращает активные организации, доступные текущему staff-пользователю. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(
     UserRole.SUPER_ADMIN,
@@ -43,6 +51,7 @@ export class TenantsController {
     });
   }
 
+  /** Возвращает организации, которыми текущий actor может управлять. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @Get('manageable')
@@ -53,11 +62,13 @@ export class TenantsController {
     });
   }
 
+  /** Возвращает публичный список активных организаций. */
   @Get()
   getActiveTenants() {
     return this.tenantsService.findActiveTenants();
   }
 
+  /** Возвращает управленческое представление организации с категориями и продуктами. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MODERATOR)
   @Get(':tenantId/management')
@@ -71,6 +82,7 @@ export class TenantsController {
     });
   }
 
+  /** Создает новую организацию; доступно только superAdmin. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @Post()
@@ -78,6 +90,7 @@ export class TenantsController {
     return this.tenantsService.createTenant(dto);
   }
 
+  /** Обновляет настройки организации с учетом роли текущего пользователя. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @Patch(':tenantId')
@@ -96,6 +109,7 @@ export class TenantsController {
     );
   }
 
+  /** Удаляет организацию; доступно только superAdmin. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @Delete(':tenantId')

@@ -9,6 +9,12 @@ import { TenantActor } from '../tenants/types/tenant-actor.type';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
+/**
+ * Бизнес-логика управления продуктами меню.
+ *
+ * Сервис проверяет доступ staff-пользователя к организации, следит за
+ * принадлежностью категории этой организации и выполняет soft-delete продуктов.
+ */
 @Injectable()
 export class ProductsService {
   constructor(
@@ -16,6 +22,7 @@ export class ProductsService {
     private readonly tenantAccessService: TenantAccessService,
   ) {}
 
+  /** Возвращает все продукты организации, отсортированные по названию. */
   async findAll(actor: TenantActor, tenantId: number) {
     this.tenantAccessService.assertCanManageOrganization(actor, tenantId);
 
@@ -25,6 +32,7 @@ export class ProductsService {
     });
   }
 
+  /** Создает продукт в активной категории той же организации. */
   async create(actor: TenantActor, dto: CreateProductDto) {
     this.tenantAccessService.assertCanManageOrganization(actor, dto.tenantId);
 
@@ -64,6 +72,7 @@ export class ProductsService {
     });
   }
 
+  /** Обновляет продукт и при смене категории проверяет ее доступность. */
   async update(actor: TenantActor, productId: number, dto: UpdateProductDto) {
     const existingProduct = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -121,6 +130,7 @@ export class ProductsService {
     });
   }
 
+  /** Скрывает продукт из меню, оставляя запись и связанные данные в базе. */
   async remove(actor: TenantActor, productId: number) {
     const existingProduct = await this.prisma.product.findUnique({
       where: { id: productId },

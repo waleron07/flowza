@@ -8,10 +8,10 @@ import { IsNotEmpty } from 'class-validator';
  */
 export class LoginDto {
   /** Телефон `+79...`, email или login. */
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Идентификатор входа обязателен' })
   identifier: string;
 
   /** Пароль пользователя. */
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Пароль обязателен' })
   password: string;
 }

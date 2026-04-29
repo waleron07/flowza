@@ -7,20 +7,49 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 
 describe('Контроллер категорий', () => {
   let controller: CategoriesController;
-  let service: {
-    findAll: jest.Mock<Promise<Array<{ id: number; name: string }>>, [ { role: UserRole; organizationIds: number[] }, number ]>;
-    create: jest.Mock<Promise<{ id: number; name: string }>, [ { role: UserRole; organizationIds: number[] }, CreateCategoryDto ]>;
-    update: jest.Mock<Promise<{ id: number; name: string }>, [ { role: UserRole; organizationIds: number[] }, number, UpdateCategoryDto ]>;
-    remove: jest.Mock<Promise<{ id: number; isActive: boolean }>, [ { role: UserRole; organizationIds: number[] }, number ]>;
+  type CategoriesServiceMock = {
+    findAll: jest.Mock<
+      Promise<Array<{ id: number; name: string }>>,
+      [{ role: UserRole; organizationIds: number[] }, number]
+    >;
+    create: jest.Mock<
+      Promise<{ id: number; name: string }>,
+      [{ role: UserRole; organizationIds: number[] }, CreateCategoryDto]
+    >;
+    update: jest.Mock<
+      Promise<{ id: number; name: string }>,
+      [{ role: UserRole; organizationIds: number[] }, number, UpdateCategoryDto]
+    >;
+    remove: jest.Mock<
+      Promise<{ id: number; isActive: boolean }>,
+      [{ role: UserRole; organizationIds: number[] }, number]
+    >;
   };
+  let service: CategoriesServiceMock;
 
   beforeEach(async () => {
     service = {
-      findAll: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-    };
+      findAll: jest.fn<
+        Promise<Array<{ id: number; name: string }>>,
+        [{ role: UserRole; organizationIds: number[] }, number]
+      >(),
+      create: jest.fn<
+        Promise<{ id: number; name: string }>,
+        [{ role: UserRole; organizationIds: number[] }, CreateCategoryDto]
+      >(),
+      update: jest.fn<
+        Promise<{ id: number; name: string }>,
+        [
+          { role: UserRole; organizationIds: number[] },
+          number,
+          UpdateCategoryDto,
+        ]
+      >(),
+      remove: jest.fn<
+        Promise<{ id: number; isActive: boolean }>,
+        [{ role: UserRole; organizationIds: number[] }, number]
+      >(),
+    } satisfies CategoriesServiceMock;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CategoriesController],

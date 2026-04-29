@@ -2,6 +2,12 @@ import { ForbiddenException } from '@nestjs/common';
 import { TenantAccessService } from './tenant-access.service';
 import { UserRole } from '../common/enums/user-role.enum';
 
+/**
+ * Unit-тесты сервиса tenant-доступа.
+ *
+ * Проверяют нормализацию списка организаций и запреты для staff-пользователей,
+ * которые пытаются работать с недоступной организацией.
+ */
 describe('Сервис tenant-доступа', () => {
   let service: TenantAccessService;
 

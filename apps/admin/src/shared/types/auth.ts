@@ -5,7 +5,8 @@ export type AuthUser = {
   phone: string
   login: string
   role: UserRole
-  tenantId: number | null
+  primaryTenantId: number | null
+  organizationIds: number[]
   isActive?: boolean
 }
 

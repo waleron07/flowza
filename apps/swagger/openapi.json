@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3001",
+      "url": "http://localhost:3000",
       "description": "Local backend"
     }
   ],
@@ -21,6 +21,25 @@
     { "name": "Users", "description": "Управление staff-пользователями" }
   ],
   "paths": {
+    "/": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Корневой smoke-check backend",
+        "responses": {
+          "200": {
+            "description": "Backend отвечает на корневой запрос",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "Hello World!"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": ["Health"],
@@ -69,6 +88,7 @@
             }
           },
           "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
           "409": { "$ref": "#/components/responses/ErrorResponse" },
           "429": { "$ref": "#/components/responses/ErrorResponse" }
         }
@@ -99,7 +119,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/ErrorResponse" }
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "429": { "$ref": "#/components/responses/ErrorResponse" }
         }
       }
     },
@@ -1152,19 +1173,37 @@
       "ErrorResponse": {
         "type": "object",
         "properties": {
+          "success": { "type": "boolean", "example": false },
           "statusCode": { "type": "integer", "example": 400 },
           "message": {
-            "oneOf": [
-              { "type": "string", "example": "Validation failed" },
-              {
-                "type": "array",
-                "items": { "type": "string" },
-                "example": ["email must be an email"]
-              }
-            ]
+            "type": "string",
+            "example": "Ошибка валидации"
           },
-          "error": { "type": "string", "example": "Bad Request" }
-        }
+          "errorCode": {
+            "type": "string",
+            "example": "VALIDATION_ERROR"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "example": "email" },
+                "message": {
+                  "type": "string",
+                  "example": "Email должен быть валидным адресом"
+                }
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-29T18:00:00.000Z"
+          },
+          "path": { "type": "string", "example": "/auth/register" }
+        },
+        "required": ["success", "statusCode", "message", "errorCode", "timestamp", "path"]
       },
       "GenericSuccess": {
         "type": "object",
@@ -1230,7 +1269,7 @@
           "success": { "type": "boolean", "example": true },
           "message": {
             "type": "string",
-            "example": "Verification code sent to email"
+            "example": "Код подтверждения отправлен на email"
           },
           "emailSentViaSmtp": { "type": "boolean", "example": true },
           "verificationRequired": { "type": "boolean", "example": true },
@@ -1337,7 +1376,7 @@
           "success": { "type": "boolean", "example": true },
           "message": {
             "type": "string",
-            "example": "If account exists, code has been sent"
+            "example": "Если аккаунт существует, код был отправлен"
           },
           "emailSentViaSmtp": { "type": "boolean", "example": true },
           "resendAvailableInSec": { "type": "integer", "example": 60 }
