@@ -21,6 +21,7 @@ import { ResendEmailCodeDto } from './dto/resend-email-code.dto';
 import { EmailSenderService } from '../email/email-sender.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { TurnstileCaptchaService } from './turnstile-captcha.service';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * Основной доменный сервис auth-сценариев.
@@ -40,6 +41,8 @@ export class AuthService {
   private readonly registerRateWindowSec: number;
   private readonly verifyRateLimit: number;
   private readonly verifyRateWindowSec: number;
+  private readonly loginRateLimit: number;
+  private readonly loginRateWindowSec: number;
 
   constructor(
     private readonly usersService: UsersService,
@@ -48,6 +51,7 @@ export class AuthService {
     private readonly authRateLimiterService: AuthRateLimiterService,
     private readonly configService: ConfigService,
     private readonly turnstileCaptchaService: TurnstileCaptchaService,
+    private readonly auditService: AuditService,
   ) {
     this.emailCodeTtlMinutes = this.getLimitFromEnv(
       'AUTH_EMAIL_CODE_TTL_MINUTES',
@@ -57,8 +61,14 @@ export class AuthService {
       'AUTH_RESEND_COOLDOWN_SECONDS',
       60,
     );
-    this.maxVerifyAttempts = this.getLimitFromEnv('AUTH_MAX_VERIFY_ATTEMPTS', 5);
-    this.registerRateLimit = this.getLimitFromEnv('AUTH_REGISTER_RATE_LIMIT', 5);
+    this.maxVerifyAttempts = this.getLimitFromEnv(
+      'AUTH_MAX_VERIFY_ATTEMPTS',
+      5,
+    );
+    this.registerRateLimit = this.getLimitFromEnv(
+      'AUTH_REGISTER_RATE_LIMIT',
+      5,
+    );
     this.registerRateWindowSec = this.getLimitFromEnv(
       'AUTH_REGISTER_RATE_WINDOW_SEC',
       10 * 60,
@@ -66,6 +76,11 @@ export class AuthService {
     this.verifyRateLimit = this.getLimitFromEnv('AUTH_VERIFY_RATE_LIMIT', 10);
     this.verifyRateWindowSec = this.getLimitFromEnv(
       'AUTH_VERIFY_RATE_WINDOW_SEC',
+      5 * 60,
+    );
+    this.loginRateLimit = this.getLimitFromEnv('AUTH_LOGIN_RATE_LIMIT', 10);
+    this.loginRateWindowSec = this.getLimitFromEnv(
+      'AUTH_LOGIN_RATE_WINDOW_SEC',
       5 * 60,
     );
   }
@@ -193,6 +208,11 @@ export class AuthService {
       this.logger.warn(
         `Превышен лимит регистрации для phone=${dto.phone} email=${dto.email} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
       );
+      await this.auditService.log({
+        action: 'AUTH_REGISTER_RATE_LIMITED',
+        entity: 'Auth',
+        entityId: 0,
+      });
       throw this.tooManyRequests('Регистрация временно заблокирована');
     }
 
@@ -210,7 +230,9 @@ export class AuthService {
 
     const existingByLogin = await this.usersService.findByLogin(dto.login);
     if (existingByLogin) {
-      throw new ConflictException('Пользователь с таким логином уже существует');
+      throw new ConflictException(
+        'Пользователь с таким логином уже существует',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -239,6 +261,12 @@ export class AuthService {
       code,
       ttlMinutes: this.emailCodeTtlMinutes,
     });
+    await this.auditService.log({
+      userId: user.id,
+      action: 'AUTH_REGISTER_SUCCESS',
+      entity: 'User',
+      entityId: user.id,
+    });
 
     return {
       success: true,
@@ -256,10 +284,44 @@ export class AuthService {
    * Выполняет login по телефону, email или login.
    *
    * Для роли `user` вход запрещен до подтверждения email. Staff-пользователи
-   * входят без этого ограничения, так как создаются админским flow.
+   * входят без этого ограничения, так как создаются админским flow. Попытки
+   * входа лимитируются до поиска пользователя, чтобы не раскрывать существование
+   * аккаунта через brute force.
    */
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, context?: { ip?: string }) {
     const identifier = dto.identifier.trim();
+    const normalizedIdentifier = identifier.toLowerCase();
+    const identifierLimit = this.authRateLimiterService.hit(
+      `login:identifier:${normalizedIdentifier}`,
+      this.loginRateLimit,
+      this.loginRateWindowSec,
+    );
+    const ipAddress = context?.ip?.trim();
+    const ipLimit =
+      ipAddress && ipAddress.length > 0
+        ? this.authRateLimiterService.hit(
+            `login:ip:${ipAddress}`,
+            this.loginRateLimit,
+            this.loginRateWindowSec,
+          )
+        : { allowed: true, retryAfterSec: 0 };
+
+    if (!identifierLimit.allowed || !ipLimit.allowed) {
+      const retryAfterSec = Math.max(
+        identifierLimit.retryAfterSec,
+        ipLimit.retryAfterSec,
+      );
+      this.logger.warn(
+        `Превышен лимит входа для identifier=${normalizedIdentifier} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
+      );
+      await this.auditService.log({
+        action: 'AUTH_LOGIN_RATE_LIMITED',
+        entity: 'Auth',
+        entityId: 0,
+      });
+      throw this.tooManyRequests('Вход временно заблокирован');
+    }
+
     const isPhone = /^\+7\d{10}$/.test(identifier);
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
@@ -269,23 +331,52 @@ export class AuthService {
         ? await this.usersService.findByEmail(identifier)
         : await this.usersService.findByLogin(identifier);
     if (!user) {
+      await this.auditService.log({
+        action: 'AUTH_LOGIN_FAILED',
+        entity: 'Auth',
+        entityId: 0,
+      });
       throw new UnauthorizedException('Неверный логин или пароль');
     }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_LOGIN_FAILED',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw new UnauthorizedException('Неверный логин или пароль');
     }
 
     if (!user.isActive) {
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_LOGIN_INACTIVE_USER',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw new UnauthorizedException('Пользователь деактивирован');
     }
 
     if (user.role === UserRole.USER && !user.emailVerifiedAt) {
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_LOGIN_UNVERIFIED_EMAIL',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw new UnauthorizedException('Email не подтвержден');
     }
 
     const payload = this.createPayload(user);
+    await this.auditService.log({
+      userId: user.id,
+      action: 'AUTH_LOGIN_SUCCESS',
+      entity: 'User',
+      entityId: user.id,
+    });
 
     return {
       accessToken: await this.jwtService.signAsync(payload),
@@ -374,6 +465,11 @@ export class AuthService {
       this.logger.warn(
         `Превышен лимит проверки email=${dto.email} ip=${ipAddress ?? 'unknown'} retryAfterSec=${retryAfterSec}`,
       );
+      await this.auditService.log({
+        action: 'AUTH_VERIFY_EMAIL_RATE_LIMITED',
+        entity: 'Auth',
+        entityId: 0,
+      });
       throw this.tooManyRequests('Слишком много попыток подтверждения');
     }
 
@@ -382,11 +478,22 @@ export class AuthService {
       this.logger.warn(
         `Попытка подтверждения для неизвестного email=${dto.email}`,
       );
+      await this.auditService.log({
+        action: 'AUTH_VERIFY_EMAIL_FAILED',
+        entity: 'Auth',
+        entityId: 0,
+      });
       throw new UnauthorizedException('Неверный код подтверждения');
     }
 
     if (user.emailVerifiedAt) {
       const payload = this.createPayload(user);
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_VERIFY_EMAIL_ALREADY_VERIFIED',
+        entity: 'User',
+        entityId: user.id,
+      });
       return {
         success: true,
         accessToken: await this.jwtService.signAsync(payload),
@@ -409,6 +516,12 @@ export class AuthService {
       this.logger.warn(
         `Попытка подтверждения без активного кода для userId=${user.id}`,
       );
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_VERIFY_EMAIL_FAILED',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw new UnauthorizedException('Неверный код подтверждения');
     }
 
@@ -416,11 +529,23 @@ export class AuthService {
       this.logger.warn(
         `Превышен лимит попыток подтверждения для userId=${user.id}, codeId=${latestCode.id}`,
       );
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_VERIFY_EMAIL_RATE_LIMITED',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw this.tooManyRequests('Слишком много попыток подтверждения');
     }
 
     if (latestCode.expiresAt.getTime() <= Date.now()) {
       this.logger.warn(`Истек срок действия кода для userId=${user.id}`);
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_VERIFY_EMAIL_EXPIRED',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw new UnauthorizedException('Код подтверждения истек');
     }
 
@@ -428,6 +553,12 @@ export class AuthService {
     if (!isValidCode) {
       await this.usersService.incrementEmailVerificationAttempts(latestCode.id);
       this.logger.warn(`Неверный код подтверждения для userId=${user.id}`);
+      await this.auditService.log({
+        userId: user.id,
+        action: 'AUTH_VERIFY_EMAIL_FAILED',
+        entity: 'User',
+        entityId: user.id,
+      });
       throw new UnauthorizedException('Неверный код подтверждения');
     }
 
@@ -435,6 +566,12 @@ export class AuthService {
     const verifiedUser = await this.usersService.markEmailVerified(user.id);
 
     const payload = this.createPayload(verifiedUser);
+    await this.auditService.log({
+      userId: verifiedUser.id,
+      action: 'AUTH_VERIFY_EMAIL_SUCCESS',
+      entity: 'User',
+      entityId: verifiedUser.id,
+    });
 
     return {
       success: true,
@@ -472,13 +609,18 @@ export class AuthService {
     );
     if (latestCode) {
       const availableAt =
-        latestCode.createdAt.getTime() +
-        this.resendCooldownSeconds * 1000;
+        latestCode.createdAt.getTime() + this.resendCooldownSeconds * 1000;
       const retryInMs = availableAt - Date.now();
       if (retryInMs > 0) {
         this.logger.warn(
           `Повторная отправка временно заблокирована для userId=${user.id} retryInMs=${retryInMs}`,
         );
+        await this.auditService.log({
+          userId: user.id,
+          action: 'AUTH_RESEND_EMAIL_RATE_LIMITED',
+          entity: 'User',
+          entityId: user.id,
+        });
         throw this.tooManyRequests('Повторная отправка временно заблокирована');
       }
     }
@@ -497,6 +639,12 @@ export class AuthService {
       email: dto.email,
       code,
       ttlMinutes: this.emailCodeTtlMinutes,
+    });
+    await this.auditService.log({
+      userId: user.id,
+      action: 'AUTH_RESEND_EMAIL_SENT',
+      entity: 'User',
+      entityId: user.id,
     });
 
     return {

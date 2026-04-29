@@ -646,6 +646,55 @@ describe('Интеграция orders', () => {
     }
   });
 
+  it('передает SQL-like search в Prisma как строковый contains-фильтр', async () => {
+    orderFindManyMock.mockResolvedValueOnce([]);
+    const maliciousSearch = "FD-2026-000031' OR '1'='1";
+
+    await request(app.getHttpServer())
+      .get('/orders/queue')
+      .query({
+        tenantId: '10',
+        search: maliciousSearch,
+      })
+      .set('x-role', UserRole.OPERATOR)
+      .set('x-orgs', '10')
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as unknown[];
+        expect(body).toEqual([]);
+      });
+
+    const findManyCalls = orderFindManyMock.mock.calls as Array<
+      [
+        {
+          where: {
+            OR?: Array<
+              | { orderNumber: { contains: string; mode: 'insensitive' } }
+              | { deliveryAddress: { contains: string; mode: 'insensitive' } }
+            >;
+          };
+        },
+      ]
+    >;
+
+    const findManyCallArgs = findManyCalls[0]?.[0];
+    expect(findManyCallArgs).toBeDefined();
+    expect(findManyCallArgs.where.OR).toEqual([
+      {
+        orderNumber: {
+          contains: maliciousSearch,
+          mode: 'insensitive',
+        },
+      },
+      {
+        deliveryAddress: {
+          contains: maliciousSearch,
+          mode: 'insensitive',
+        },
+      },
+    ]);
+  });
+
   it('возвращает таймлайн заказа с фильтром EVENT', async () => {
     orderFindUniqueMock.mockResolvedValueOnce({
       id: 30,

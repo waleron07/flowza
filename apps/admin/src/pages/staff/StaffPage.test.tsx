@@ -38,7 +38,7 @@ describe('StaffPage', () => {
     mockedCreateStaffUserRequest.mockReset()
   })
 
-  it('показывает tenantId и роль admin для superAdmin', () => {
+  it('показывает organizationIds и роль admin для superAdmin', () => {
     renderStaffPage({
       status: 'authenticated',
       user: {
@@ -46,18 +46,19 @@ describe('StaffPage', () => {
         phone: '+79990000001',
         login: 'super_admin',
         role: 'superAdmin',
-        tenantId: null,
+        primaryTenantId: null,
+        organizationIds: [],
       },
       login: vi.fn(),
       logout: vi.fn(),
     })
 
-    expect(screen.getByLabelText(/tenant id/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/organization ids/i)).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /роль/i })).toHaveTextContent('admin')
     expect(screen.getAllByText('admin').length).toBeGreaterThan(0)
   })
 
-  it('не показывает tenantId и не дает выбрать admin для admin-пользователя', async () => {
+  it('не показывает organizationIds и не дает выбрать admin для admin-пользователя', async () => {
     const user = userEvent.setup()
 
     renderStaffPage({
@@ -67,13 +68,14 @@ describe('StaffPage', () => {
         phone: '+79990000002',
         login: 'admin_user',
         role: 'admin',
-        tenantId: 12,
+        primaryTenantId: 12,
+        organizationIds: [12],
       },
       login: vi.fn(),
       logout: vi.fn(),
     })
 
-    expect(screen.queryByLabelText(/tenant id/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/organization ids/i)).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /роль/i })).toHaveTextContent('moderator')
 
     await user.click(screen.getByRole('combobox', { name: /роль/i }))
@@ -92,7 +94,8 @@ describe('StaffPage', () => {
       login: 'ivan_staff',
       email: 'ivan.staff@example.com',
       role: 'moderator',
-      tenantId: 22,
+      primaryTenantId: 22,
+      organizationIds: [22],
       isActive: true,
     })
 
@@ -103,7 +106,8 @@ describe('StaffPage', () => {
         phone: '+79990000002',
         login: 'admin_user',
         role: 'admin',
-        tenantId: 22,
+        primaryTenantId: 22,
+        organizationIds: [22],
       },
       login: vi.fn(),
       logout: vi.fn(),

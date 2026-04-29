@@ -9,6 +9,7 @@ import { EmailModule } from '../email/email.module';
 import { JwtStrategy } from './jwt.strategy';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { TurnstileCaptchaService } from './turnstile-captcha.service';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * Модуль авторизации.
@@ -22,6 +23,7 @@ import { TurnstileCaptchaService } from './turnstile-captcha.service';
     ConfigModule,
     UsersModule,
     EmailModule,
+    AuditModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

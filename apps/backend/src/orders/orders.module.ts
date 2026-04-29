@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { TenantsModule } from '../tenants/tenants.module';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * Модуль заказов.
@@ -11,7 +12,7 @@ import { TenantsModule } from '../tenants/tenants.module';
  * проверяется через tenant-aware правила из `TenantsModule`.
  */
 @Module({
-  imports: [TenantsModule],
+  imports: [TenantsModule, AuditModule],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

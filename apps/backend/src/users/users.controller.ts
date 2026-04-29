@@ -7,12 +7,19 @@ import { JwtPayload } from '../auth/types/jwt-payload.type';
 import { CreateStaffUserDto } from './dto/create-staff-user.dto';
 import { UsersManagementService } from './users-management.service';
 
+/**
+ * HTTP-контроллер пользователей.
+ *
+ * Сейчас содержит защищенный endpoint для создания staff-пользователей через
+ * админку с учетом роли текущего пользователя.
+ */
 @Controller('users')
 export class UsersController {
   constructor(
     private readonly usersManagementService: UsersManagementService,
   ) {}
 
+  /** Создает staff-пользователя от имени admin или superAdmin. */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Post('staff')

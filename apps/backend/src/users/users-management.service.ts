@@ -10,14 +10,23 @@ import { UsersService } from './users.service';
 import { CreateStaffUserDto } from './dto/create-staff-user.dto';
 import { TenantAccessService } from '../tenants/tenant-access.service';
 import { TenantActor } from '../tenants/types/tenant-actor.type';
+import { AuditService } from '../audit/audit.service';
 
+/**
+ * Сервис управления пользователями через админку.
+ *
+ * Проверяет, может ли текущий actor создать выбранную staff-роль, валидирует
+ * уникальность учетных данных и назначает доступные организации.
+ */
 @Injectable()
 export class UsersManagementService {
   constructor(
     private readonly usersService: UsersService,
     private readonly tenantAccessService: TenantAccessService,
+    private readonly auditService: AuditService,
   ) {}
 
+  /** Проверяет, разрешено ли actor создавать пользователя с указанной ролью. */
   private validateRoleCreation(actorRole: UserRole, targetRole: UserRole) {
     if (targetRole === UserRole.USER) {
       throw new BadRequestException(
@@ -46,6 +55,7 @@ export class UsersManagementService {
     }
   }
 
+  /** Создает staff-пользователя с проверкой роли, уникальности и tenant-доступа. */
   async createByPrivilegedUser(
     actor: {
       userId: number;
@@ -55,7 +65,17 @@ export class UsersManagementService {
     },
     dto: CreateStaffUserDto,
   ) {
-    this.validateRoleCreation(actor.role, dto.role);
+    try {
+      this.validateRoleCreation(actor.role, dto.role);
+    } catch (error) {
+      await this.auditService.log({
+        userId: actor.userId,
+        action: 'STAFF_USER_CREATE_FORBIDDEN_ROLE',
+        entity: 'User',
+        entityId: 0,
+      });
+      throw error;
+    }
 
     const existingUser = await this.usersService.findByPhone(dto.phone);
     if (existingUser) {
@@ -71,7 +91,9 @@ export class UsersManagementService {
 
     const existingUserByLogin = await this.usersService.findByLogin(dto.login);
     if (existingUserByLogin) {
-      throw new ConflictException('Пользователь с таким логином уже существует');
+      throw new ConflictException(
+        'Пользователь с таким логином уже существует',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -100,15 +122,25 @@ export class UsersManagementService {
       );
     }
 
-    this.tenantAccessService.assertCanAssignOrganizations(
-      actor as TenantActor,
-      organizationIds,
-    );
+    try {
+      this.tenantAccessService.assertCanAssignOrganizations(
+        actor as TenantActor,
+        organizationIds,
+      );
+    } catch (error) {
+      await this.auditService.log({
+        userId: actor.userId,
+        action: 'STAFF_USER_CREATE_FORBIDDEN_ORGANIZATION',
+        entity: 'User',
+        entityId: 0,
+      });
+      throw error;
+    }
 
     const primaryTenantId =
       organizationIds[0] ?? actor.primaryTenantId ?? undefined;
 
-    return this.usersService.create({
+    const createdUser = await this.usersService.create({
       primaryTenantId,
       organizationIds,
       email: dto.email,
@@ -118,5 +150,13 @@ export class UsersManagementService {
       login: dto.login,
       isActive: true,
     });
+    await this.auditService.log({
+      userId: actor.userId,
+      action: 'STAFF_USER_CREATED',
+      entity: 'User',
+      entityId: createdUser.id,
+    });
+
+    return createdUser;
   }
 }

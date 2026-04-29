@@ -4,6 +4,7 @@ import { PrismaService } from '../database/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { TenantAccessService } from '../tenants/tenant-access.service';
 import { OrderAction, OrdersService } from './orders.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('Сервис заказов', () => {
   const tenantFindFirstMock = jest.fn();
@@ -14,6 +15,7 @@ describe('Сервис заказов', () => {
   const orderFindUniqueMock = jest.fn();
   const orderCommentFindManyMock = jest.fn();
   const assertCanManageOrganizationMock = jest.fn();
+  const auditLogMock = jest.fn();
 
   const prisma = {
     tenant: {
@@ -37,6 +39,10 @@ describe('Сервис заказов', () => {
     assertCanManageOrganization: assertCanManageOrganizationMock,
   } as unknown as TenantAccessService;
 
+  const auditService = {
+    log: auditLogMock,
+  } as unknown as AuditService;
+
   let service: OrdersService;
 
   beforeEach(() => {
@@ -48,7 +54,9 @@ describe('Сервис заказов', () => {
     orderFindUniqueMock.mockReset();
     orderCommentFindManyMock.mockReset();
     assertCanManageOrganizationMock.mockReset();
-    service = new OrdersService(prisma, tenantAccessService);
+    auditLogMock.mockReset();
+    auditLogMock.mockResolvedValue(undefined);
+    service = new OrdersService(prisma, tenantAccessService, auditService);
   });
 
   it('создает заказ по активной организации и товарам', async () => {
@@ -679,6 +687,12 @@ describe('Сервис заказов', () => {
       },
     });
     expect(updateStatusCall[0]?.[0].data.confirmedAt).toBeInstanceOf(Date);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 11,
+      action: 'ORDER_STATUS_CHANGED',
+      entity: 'Order',
+      entityId: 30,
+    });
   });
 
   it('возвращает историю комментариев к заказу для staff с доступом', async () => {
@@ -812,6 +826,12 @@ describe('Сервис заказов', () => {
         OrderStatus.READY,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: undefined,
+      action: 'ORDER_STATUS_CHANGE_FORBIDDEN',
+      entity: 'Order',
+      entityId: 30,
+    });
   });
 
   it('возвращает ошибку при смене статуса несуществующего заказа', async () => {
@@ -903,6 +923,12 @@ describe('Сервис заказов', () => {
           },
         },
       },
+    });
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 11,
+      action: 'ORDER_COMMENT_UPDATED',
+      entity: 'Order',
+      entityId: 30,
     });
   });
 
@@ -1019,6 +1045,12 @@ describe('Сервис заказов', () => {
       },
     });
     expect(updatePaymentStatusCall[0]?.[0].data.paidAt).toBeInstanceOf(Date);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 11,
+      action: 'ORDER_PAYMENT_STATUS_CHANGED',
+      entity: 'Order',
+      entityId: 31,
+    });
   });
 
   it('запрещает недопустимый переход статуса оплаты заказа', async () => {
@@ -1039,6 +1071,12 @@ describe('Сервис заказов', () => {
         11,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 11,
+      action: 'ORDER_PAYMENT_STATUS_CHANGE_FORBIDDEN',
+      entity: 'Order',
+      entityId: 31,
+    });
   });
 
   it('выполняет операционное действие по заказу через маппинг статуса', async () => {

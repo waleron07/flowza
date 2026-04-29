@@ -27,7 +27,10 @@ export function MenuPage() {
   );
   const selectedOrganization = data?.organization;
   const categories = data?.categories ?? [];
-  const organizationProducts = data?.products ?? [];
+  const organizationProducts = useMemo(
+    () => data?.products ?? [],
+    [data?.products],
+  );
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
 
   const filteredProducts = useMemo(() => {

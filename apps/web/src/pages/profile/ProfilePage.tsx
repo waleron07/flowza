@@ -22,15 +22,13 @@ export function ProfilePage() {
     (state) => state.selectedOrganizationId,
   );
   const organizationsQuery = useOrganizationsQuery();
-  const ordersQuery = useMyOrdersQuery(Boolean(user));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  if (!user) {
-    return null;
-  }
-
-  const organizations = organizationsQuery.data ?? [];
+  const organizations = useMemo(
+    () => organizationsQuery.data ?? [],
+    [organizationsQuery.data],
+  );
   const organizationNameByTenantId = useMemo(
     () =>
       new Map(
@@ -41,9 +39,22 @@ export function ProfilePage() {
       ),
     [organizations],
   );
-  const selectedOrganization = organizations.find(
-    (organization) => organization.id === selectedOrganizationId,
+  const selectedOrganization = useMemo(
+    () =>
+      organizations.find(
+        (organization) => organization.id === selectedOrganizationId,
+      ),
+    [organizations, selectedOrganizationId],
   );
+  const ordersQuery = useMyOrdersQuery(
+    selectedOrganization?.tenantId,
+    Boolean(user),
+  );
+
+  if (!user) {
+    return null;
+  }
+
   const accessibleOrganizations = user.organizationIds
     .map((tenantId) =>
       organizations.find((organization) => organization.tenantId === tenantId),
@@ -250,7 +261,7 @@ export function ProfilePage() {
 
             <Button
               component="a"
-              href="http://localhost:3001/health"
+              href="http://localhost:3000/health"
               rel="noreferrer"
               target="_blank"
               variant="text"

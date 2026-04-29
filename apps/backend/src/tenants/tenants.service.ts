@@ -11,6 +11,12 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantActor } from './types/tenant-actor.type';
 import { TenantAccessService } from './tenant-access.service';
 
+/**
+ * Бизнес-логика организаций.
+ *
+ * Сервис собирает публичные каталоги, управленческие представления и применяет
+ * правила доступа staff-пользователей к организациям.
+ */
 @Injectable()
 export class TenantsService {
   constructor(
@@ -18,6 +24,7 @@ export class TenantsService {
     private readonly tenantAccessService: TenantAccessService,
   ) {}
 
+  /** Возвращает активные организации для публичных списков. */
   async findActiveTenants() {
     return this.prisma.tenant.findMany({
       where: { isActive: true },
@@ -31,6 +38,7 @@ export class TenantsService {
     });
   }
 
+  /** Возвращает организации, которыми actor может управлять в админке. */
   async findManageableTenantsForActor(actor: TenantActor) {
     if (actor.role !== UserRole.SUPER_ADMIN && actor.role !== UserRole.ADMIN) {
       throw new ForbiddenException(
@@ -74,6 +82,7 @@ export class TenantsService {
     });
   }
 
+  /** Собирает публичный каталог активной организации по slug. */
   async findPublicCatalogBySlug(slug: string) {
     const tenant = await this.prisma.tenant.findFirst({
       where: { slug, isActive: true },
@@ -145,6 +154,7 @@ export class TenantsService {
     };
   }
 
+  /** Собирает админское представление организации вместе с категориями и продуктами. */
   async findManagementViewByTenantId(tenantId: number, actor: TenantActor) {
     this.tenantAccessService.assertCanManageOrganization(actor, tenantId);
 
@@ -194,6 +204,7 @@ export class TenantsService {
     };
   }
 
+  /** Возвращает активные организации, доступные actor для рабочих сценариев. */
   async findAccessibleTenantsForActor(actor: TenantActor) {
     if (actor.role === UserRole.SUPER_ADMIN) {
       return this.findActiveTenants();
@@ -222,6 +233,7 @@ export class TenantsService {
     });
   }
 
+  /** Создает организацию с настройками публичной витрины и доставки. */
   async createTenant(dto: CreateTenantDto) {
     return this.prisma.tenant.create({
       data: {
@@ -247,6 +259,7 @@ export class TenantsService {
     });
   }
 
+  /** Обновляет организацию и ограничивает критичные поля ролью superAdmin. */
   async updateTenant(
     tenantId: number,
     actor: TenantActor,
@@ -298,6 +311,7 @@ export class TenantsService {
     });
   }
 
+  /** Физически удаляет организацию после проверки существования записи. */
   async removeTenant(tenantId: number) {
     const existingTenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },

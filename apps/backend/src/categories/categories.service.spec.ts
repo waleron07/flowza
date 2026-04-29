@@ -35,10 +35,7 @@ describe('Сервис категорий', () => {
     categoryFindManyMock.mockResolvedValue([{ id: 1, name: 'Пицца' }]);
 
     await expect(
-      service.findAll(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        10,
-      ),
+      service.findAll({ role: UserRole.ADMIN, organizationIds: [10] }, 10),
     ).resolves.toEqual([{ id: 1, name: 'Пицца' }]);
   });
 
@@ -79,11 +76,9 @@ describe('Сервис категорий', () => {
     categoryUpdateMock.mockResolvedValue({ id: 1, name: 'Обновлено' });
 
     await expect(
-      service.update(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        1,
-        { name: 'Обновлено' },
-      ),
+      service.update({ role: UserRole.ADMIN, organizationIds: [10] }, 1, {
+        name: 'Обновлено',
+      }),
     ).resolves.toEqual({ id: 1, name: 'Обновлено' });
   });
 
@@ -91,11 +86,9 @@ describe('Сервис категорий', () => {
     categoryFindUniqueMock.mockResolvedValue(null);
 
     await expect(
-      service.update(
-        { role: UserRole.ADMIN, organizationIds: [10] },
-        1,
-        { name: 'Обновлено' },
-      ),
+      service.update({ role: UserRole.ADMIN, organizationIds: [10] }, 1, {
+        name: 'Обновлено',
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -104,10 +97,7 @@ describe('Сервис категорий', () => {
     categoryUpdateMock.mockResolvedValue({ id: 1, isActive: false });
 
     await expect(
-      service.remove(
-        { role: UserRole.MODERATOR, organizationIds: [10] },
-        1,
-      ),
+      service.remove({ role: UserRole.MODERATOR, organizationIds: [10] }, 1),
     ).resolves.toEqual({ id: 1, isActive: false });
     expect(categoryUpdateMock).toHaveBeenCalledWith({
       where: { id: 1 },

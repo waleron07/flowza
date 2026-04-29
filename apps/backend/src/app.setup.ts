@@ -10,12 +10,19 @@ import { randomUUID } from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+/**
+ * Опции общей настройки Nest-приложения.
+ */
 type ConfigureAppOptions = {
+  /** Включить Swagger UI и JSON-документацию. */
   enableDocs?: boolean;
 };
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
+/**
+ * Преобразует ошибки `class-validator` в плоский список полей и сообщений.
+ */
 function mapValidationErrors(errors: ValidationError[]) {
   return errors.flatMap((error) => {
     const ownConstraints = Object.values(error.constraints ?? {}).map(
@@ -36,10 +43,13 @@ function mapValidationErrors(errors: ValidationError[]) {
   });
 }
 
+/**
+ * Подключает Swagger-документацию backend API.
+ */
 function setupSwagger(app: INestApplication) {
   const config = new DocumentBuilder()
     .setTitle('Flowza Backend API')
-    .setDescription('API documentation for Flowza backend services')
+    .setDescription('Документация API backend-сервисов Flowza')
     .setVersion('1.0.0')
     .addBearerAuth()
     .build();
@@ -50,6 +60,10 @@ function setupSwagger(app: INestApplication) {
   });
 }
 
+/**
+ * Применяет общие настройки приложения: CORS, request-id, access-логи,
+ * глобальную валидацию, фильтры ошибок и Swagger при необходимости.
+ */
 export function configureApp(
   app: INestApplication,
   options?: ConfigureAppOptions,
@@ -82,7 +96,7 @@ export function configureApp(
         return;
       }
 
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Источник запрещен CORS-политикой'));
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -122,7 +136,7 @@ export function configureApp(
       forbidNonWhitelisted: true,
       exceptionFactory: (errors: ValidationError[]) =>
         new BadRequestException({
-          message: 'Validation failed',
+          message: 'Ошибка валидации',
           errorCode: 'VALIDATION_ERROR',
           details: mapValidationErrors(errors),
         }),

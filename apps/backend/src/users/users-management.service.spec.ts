@@ -7,12 +7,21 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { UsersService } from './users.service';
 import { UsersManagementService } from './users-management.service';
 import { TenantAccessService } from '../tenants/tenant-access.service';
+import { AuditService } from '../audit/audit.service';
 
+/**
+ * Unit-тесты сервиса управления staff-пользователями.
+ *
+ * Покрывают правила создания ролей, уникальность учетных данных и ограничения
+ * назначения сотрудников в организации.
+ */
 describe('Сервис управления пользователями админки', () => {
+  /** Моки зависимостей, изолирующие проверку бизнес-правил от Prisma. */
   const findByPhoneMock = jest.fn();
   const findByEmailMock = jest.fn();
   const findByLoginMock = jest.fn();
   const createUserMock = jest.fn();
+  const auditLogMock = jest.fn().mockResolvedValue(undefined);
 
   const usersService = {
     findByPhone: findByPhoneMock,
@@ -28,6 +37,10 @@ describe('Сервис управления пользователями адм�
     assertCanAssignOrganizations: jest.fn(),
   } as unknown as TenantAccessService;
 
+  const auditService = {
+    log: auditLogMock,
+  } as unknown as AuditService;
+
   let service: UsersManagementService;
 
   beforeEach(() => {
@@ -39,7 +52,11 @@ describe('Сервис управления пользователями адм�
         [...new Set(organizationIds ?? [])].sort((left, right) => left - right),
     ) as never;
     tenantAccessService.assertCanAssignOrganizations = jest.fn() as never;
-    service = new UsersManagementService(usersService, tenantAccessService);
+    service = new UsersManagementService(
+      usersService,
+      tenantAccessService,
+      auditService,
+    );
   });
 
   it('разрешает admin создавать operator', async () => {
@@ -68,6 +85,12 @@ describe('Сервис управления пользователями адм�
 
     expect(createUserMock).toHaveBeenCalledTimes(1);
     expect(result.role).toBe(UserRole.OPERATOR);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 1,
+      action: 'STAFF_USER_CREATED',
+      entity: 'User',
+      entityId: 1,
+    });
   });
 
   it('запрещает admin создавать admin', async () => {
@@ -88,6 +111,12 @@ describe('Сервис управления пользователями адм�
         },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 1,
+      action: 'STAFF_USER_CREATE_FORBIDDEN_ROLE',
+      entity: 'User',
+      entityId: 0,
+    });
   });
 
   it('разрешает superAdmin создавать admin', async () => {
@@ -102,7 +131,7 @@ describe('Сервис управления пользователями адм�
       {
         userId: 100,
         role: UserRole.SUPER_ADMIN,
-          primaryTenantId: null,
+        primaryTenantId: null,
         organizationIds: [10, 77, 88],
       },
       {
@@ -170,7 +199,9 @@ describe('Сервис управления пользователями адм�
   it('запрещает admin назначать сотрудника в недоступную организацию', async () => {
     findByPhoneMock.mockResolvedValue(null);
     tenantAccessService.assertCanAssignOrganizations = jest.fn(() => {
-      throw new ForbiddenException('Нельзя назначить сотрудника в недоступную организацию');
+      throw new ForbiddenException(
+        'Нельзя назначить сотрудника в недоступную организацию',
+      );
     }) as never;
 
     await expect(
@@ -191,6 +222,12 @@ describe('Сервис управления пользователями адм�
         },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 1,
+      action: 'STAFF_USER_CREATE_FORBIDDEN_ORGANIZATION',
+      entity: 'User',
+      entityId: 0,
+    });
   });
 
   it('использует доступные организации admin по умолчанию', async () => {
@@ -205,7 +242,7 @@ describe('Сервис управления пользователями адм�
       {
         userId: 1,
         role: UserRole.ADMIN,
-          primaryTenantId: 10,
+        primaryTenantId: 10,
         organizationIds: [10, 20],
       },
       {

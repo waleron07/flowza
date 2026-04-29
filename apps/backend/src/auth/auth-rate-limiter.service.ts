@@ -27,7 +27,11 @@ export class AuthRateLimiterService {
    * @returns `allowed=true`, если попытка разрешена; иначе `retryAfterSec`
    *          показывает, через сколько секунд можно повторить запрос.
    */
-  hit(key: string, limit: number, windowSec: number): {
+  hit(
+    key: string,
+    limit: number,
+    windowSec: number,
+  ): {
     allowed: boolean;
     retryAfterSec: number;
   } {

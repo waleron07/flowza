@@ -44,7 +44,7 @@ export function DashboardPage() {
         {healthQuery.isError ? (
           <Alert severity="error">
             Не удалось получить статус backend. Проверь, что `apps/backend` запущен на
-            `http://localhost:3001`.
+            `http://localhost:3000`.
           </Alert>
         ) : null}
 

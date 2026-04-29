@@ -8,8 +8,9 @@ type StaffUserResponseDto = {
   login: string
   email: string
   role: string
-  tenantId: number | null
-  isActive: boolean
+  primaryTenantId: number | null
+  organizationIds: number[]
+  isActive?: boolean
 }
 
 export async function createStaffUserRequest(payload: CreateStaffUserDto) {

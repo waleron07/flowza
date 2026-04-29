@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  HttpException,
   HttpStatus,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,6 +14,7 @@ import { UsersService } from '../users/users.service';
 import { EmailSenderService } from '../email/email-sender.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { TurnstileCaptchaService } from './turnstile-captcha.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('Сервис авторизации', () => {
   const findByPhoneMock = jest.fn();
@@ -29,6 +29,24 @@ describe('Сервис авторизации', () => {
   const markEmailVerificationCodeUsedMock = jest.fn();
   const invalidateActiveEmailVerificationCodesMock = jest.fn();
   const markEmailVerifiedMock = jest.fn();
+  const jwtSignAsyncMock = jest.fn().mockResolvedValue('mock.jwt.token');
+  const sendVerificationCodeMock = jest
+    .fn()
+    .mockResolvedValue({ sentViaSmtp: true });
+  const rateLimiterHitMock = jest
+    .fn()
+    .mockReturnValue({ allowed: true, retryAfterSec: 0 });
+  const configGetMock = jest.fn();
+  const assertValidCaptchaTokenMock = jest.fn((token: string) => {
+    if (token !== 'mock-captcha-token') {
+      return Promise.reject(
+        new UnauthorizedException('Токен капчи недействителен'),
+      );
+    }
+
+    return Promise.resolve();
+  });
+  const auditLogMock = jest.fn().mockResolvedValue(undefined);
 
   const usersService = {
     findByPhone: findByPhoneMock,
@@ -41,37 +59,34 @@ describe('Сервис авторизации', () => {
     findLatestEmailVerificationCode: findLatestEmailVerificationCodeMock,
     incrementEmailVerificationAttempts: incrementEmailVerificationAttemptsMock,
     markEmailVerificationCodeUsed: markEmailVerificationCodeUsedMock,
-    invalidateActiveEmailVerificationCodes: invalidateActiveEmailVerificationCodesMock,
+    invalidateActiveEmailVerificationCodes:
+      invalidateActiveEmailVerificationCodesMock,
     markEmailVerified: markEmailVerifiedMock,
   } as unknown as UsersService;
 
   const jwtService = {
-    signAsync: jest.fn().mockResolvedValue('mock.jwt.token'),
+    signAsync: jwtSignAsyncMock,
   } as unknown as JwtService;
 
   const emailSenderService = {
-    sendVerificationCode: jest
-      .fn()
-      .mockResolvedValue({ sentViaSmtp: true }),
+    sendVerificationCode: sendVerificationCodeMock,
   } as unknown as EmailSenderService;
 
   const authRateLimiterService = {
-    hit: jest
-      .fn()
-      .mockReturnValue({ allowed: true, retryAfterSec: 0 }),
+    hit: rateLimiterHitMock,
   } as unknown as AuthRateLimiterService;
 
   const configService = {
-    get: jest.fn(),
+    get: configGetMock,
   } as unknown as ConfigService;
 
   const turnstileCaptchaService = {
-    assertValidToken: jest.fn().mockImplementation(async (token: string) => {
-      if (token !== 'mock-captcha-token') {
-        throw new UnauthorizedException('Токен капчи недействителен');
-      }
-    }),
+    assertValidToken: assertValidCaptchaTokenMock,
   } as unknown as TurnstileCaptchaService;
+
+  const auditService = {
+    log: auditLogMock,
+  } as unknown as AuditService;
 
   let authService: AuthService;
 
@@ -84,6 +99,7 @@ describe('Сервис авторизации', () => {
       authRateLimiterService,
       configService,
       turnstileCaptchaService,
+      auditService,
     );
   });
 
@@ -119,7 +135,13 @@ describe('Сервис авторизации', () => {
     expect(result.verificationRequired).toBe(true);
     expect(createUserMock).toHaveBeenCalledTimes(1);
     expect(createEmailVerificationCodeMock).toHaveBeenCalledTimes(1);
-    expect(emailSenderService.sendVerificationCode).toHaveBeenCalledTimes(1);
+    expect(sendVerificationCodeMock).toHaveBeenCalledTimes(1);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 10,
+      action: 'AUTH_REGISTER_SUCCESS',
+      entity: 'User',
+      entityId: 10,
+    });
   });
 
   it('отклоняет регистрацию без согласия с политикой конфиденциальности', async () => {
@@ -218,7 +240,7 @@ describe('Сервис авторизации', () => {
   });
 
   it('ограничивает частые register-запросы', async () => {
-    (authRateLimiterService.hit as jest.Mock)
+    rateLimiterHitMock
       .mockReturnValueOnce({ allowed: false, retryAfterSec: 30 })
       .mockReturnValueOnce({ allowed: true, retryAfterSec: 0 });
 
@@ -235,6 +257,11 @@ describe('Сервис авторизации', () => {
       }),
     ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+    expect(auditLogMock).toHaveBeenCalledWith({
+      action: 'AUTH_REGISTER_RATE_LIMITED',
+      entity: 'Auth',
+      entityId: 0,
     });
   });
 
@@ -260,6 +287,12 @@ describe('Сервис авторизации', () => {
 
     expect(result.accessToken).toBe('mock.jwt.token');
     expect(result.user.id).toBe(11);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 11,
+      action: 'AUTH_LOGIN_SUCCESS',
+      entity: 'User',
+      entityId: 11,
+    });
   });
 
   it('отклоняет вход с неверным паролем', async () => {
@@ -279,10 +312,40 @@ describe('Сервис авторизации', () => {
 
     await expect(
       authService.login({
-      identifier: '+79991234567',
+        identifier: '+79991234567',
         password: 'wrong-password',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 11,
+      action: 'AUTH_LOGIN_FAILED',
+      entity: 'User',
+      entityId: 11,
+    });
+  });
+
+  it('ограничивает частые login-запросы до поиска пользователя', async () => {
+    rateLimiterHitMock.mockReturnValueOnce({
+      allowed: false,
+      retryAfterSec: 60,
+    });
+
+    await expect(
+      authService.login({
+        identifier: '+79991234567',
+        password: 'password123',
+      }),
+    ).rejects.toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+    expect(findByPhoneMock).not.toHaveBeenCalled();
+    expect(findByEmailMock).not.toHaveBeenCalled();
+    expect(findByLoginMock).not.toHaveBeenCalled();
+    expect(auditLogMock).toHaveBeenCalledWith({
+      action: 'AUTH_LOGIN_RATE_LIMITED',
+      entity: 'Auth',
+      entityId: 0,
+    });
   });
 
   it('блокирует вход user до подтверждения email', async () => {
@@ -349,10 +412,16 @@ describe('Сервис авторизации', () => {
       user.id,
     );
     expect(markEmailVerifiedMock).toHaveBeenCalledWith(user.id);
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: user.id,
+      action: 'AUTH_VERIFY_EMAIL_SUCCESS',
+      entity: 'User',
+      entityId: user.id,
+    });
   });
 
   it('ограничивает частые verify-запросы', async () => {
-    (authRateLimiterService.hit as jest.Mock).mockReturnValueOnce({
+    rateLimiterHitMock.mockReturnValueOnce({
       allowed: false,
       retryAfterSec: 10,
     });
@@ -364,6 +433,11 @@ describe('Сервис авторизации', () => {
       }),
     ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+    expect(auditLogMock).toHaveBeenCalledWith({
+      action: 'AUTH_VERIFY_EMAIL_RATE_LIMITED',
+      entity: 'Auth',
+      entityId: 0,
     });
   });
 
@@ -394,6 +468,12 @@ describe('Сервис авторизации', () => {
       authService.resendEmailCode({ email: 'cooldown@example.com' }),
     ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+    expect(auditLogMock).toHaveBeenCalledWith({
+      userId: 50,
+      action: 'AUTH_RESEND_EMAIL_RATE_LIMITED',
+      entity: 'User',
+      entityId: 50,
     });
   });
 

@@ -49,6 +49,29 @@
 - Backend уже отдает organization showcase-поля, категории и карточки товаров в management view, поэтому admin может редактировать не только базовые реквизиты организации, но и главную страницу/каталог.
 - Backend уже поддерживает расширенный staff order workflow (очередь, смена статусов, комментарии, timeline), поэтому `apps/admin` может строить экран управления заказами поверх реальных контрактов без промежуточных mock-API.
 
+### Синхронизация с backend/OpenAPI (2026-04-29)
+
+- Default `VITE_API_URL` fallback в `shared/api/http.ts` обновлен на `http://localhost:3000`, как в текущем backend `main.ts` и `apps/swagger/openapi.json`.
+- Текст health-check в dashboard обновлен на `http://localhost:3000`.
+- Auth-типы синхронизированы с backend response:
+  - `AuthUser.primaryTenantId`;
+  - `AuthUser.organizationIds`;
+  - `tenantId` больше не используется как auth-поле.
+- Staff create-flow синхронизирован с `CreateStaffUserDto` backend:
+  - payload использует `primaryTenantId`;
+  - payload использует `organizationIds`;
+  - UI superAdmin-поля временно принимает список organization IDs через запятую до полноценного multi-select.
+- Добавлен контрактный order API слой для уже реализованных backend endpoints:
+  - `GET /orders/queue`;
+  - `GET /orders/tenant`;
+  - `GET /orders/:orderId/comments`;
+  - `GET /orders/:orderId/timeline`;
+  - `PATCH /orders/:orderId/status`;
+  - `PATCH /orders/:orderId/comment`;
+  - `PATCH /orders/:orderId/payment-status`;
+  - `PATCH /orders/:orderId/action`.
+- Проверено: `pnpm --filter admin typecheck`.
+
 На backend уже реализовано и доступно для admin части:
 
 - `POST /auth/login`

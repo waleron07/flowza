@@ -11,6 +11,10 @@ import { TenantAccessService } from '../../src/tenants/tenant-access.service';
 
 describe('Интеграция tenants', () => {
   let app: INestApplication<App>;
+  type TenantFindFirstArgs = {
+    where: { slug: string; isActive: boolean };
+    select: object;
+  };
 
   const tenantFindManyMock = jest.fn();
   const tenantFindFirstMock = jest.fn();
@@ -251,6 +255,28 @@ describe('Интеграция tenants', () => {
     await request(app.getHttpServer())
       .get('/tenants/missing/catalog')
       .expect(404);
+  });
+
+  it('обрабатывает SQL-like slug как обычную строку и возвращает 404 без raw query', async () => {
+    tenantFindFirstMock.mockResolvedValue(null);
+
+    const maliciousSlug = "flowza-cafe' OR '1'='1";
+
+    await request(app.getHttpServer())
+      .get(`/tenants/${encodeURIComponent(maliciousSlug)}/catalog`)
+      .expect(404);
+
+    const tenantFindFirstCalls = (
+      tenantFindFirstMock as jest.Mock<unknown, [TenantFindFirstArgs]>
+    ).mock.calls;
+    const tenantFindFirstArgs = tenantFindFirstCalls[0]?.[0];
+    expect(tenantFindFirstArgs.where).toEqual({
+      slug: maliciousSlug,
+      isActive: true,
+    });
+    expect(tenantFindFirstArgs.select).toBeDefined();
+    expect(categoryFindManyMock).not.toHaveBeenCalled();
+    expect(productFindManyMock).not.toHaveBeenCalled();
   });
 
   it('возвращает список управляемых организаций для admin и фильтрует по organizationIds', async () => {

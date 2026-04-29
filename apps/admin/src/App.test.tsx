@@ -77,7 +77,8 @@ describe('App', () => {
         phone: '+79991234567',
         login: 'admin_login',
         role: 'admin',
-        tenantId: 1,
+        primaryTenantId: 1,
+        organizationIds: [1],
       },
     })
 
@@ -102,7 +103,8 @@ describe('App', () => {
         phone: '+79991230000',
         login: 'client_login',
         role: 'user',
-        tenantId: 3,
+        primaryTenantId: 3,
+        organizationIds: [3],
       },
     })
 
@@ -125,7 +127,8 @@ describe('App', () => {
       phone: '+79995554433',
       login: 'moderator_login',
       role: 'moderator',
-      tenantId: 15,
+      primaryTenantId: 15,
+      organizationIds: [15],
     })
 
     renderApp()
