@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -18,6 +18,14 @@ export class UsersController {
   constructor(
     private readonly usersManagementService: UsersManagementService,
   ) {}
+
+  /** Возвращает активных admin-пользователей для назначения владельцем организации. */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @Get('admin-candidates')
+  getAdminCandidates() {
+    return this.usersManagementService.findAdminCandidates();
+  }
 
   /** Создает staff-пользователя от имени admin или superAdmin. */
   @UseGuards(JwtAuthGuard, RolesGuard)

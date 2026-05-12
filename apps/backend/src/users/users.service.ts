@@ -211,6 +211,24 @@ export class UsersService {
     });
   }
 
+  /** Возвращает активных пользователей с указанной ролью для админских списков выбора. */
+  async findActiveUsersByRole(role: UserRole) {
+    return this.prisma.user.findMany({
+      where: {
+        role,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        login: true,
+        email: true,
+        phone: true,
+        role: true,
+      },
+      orderBy: [{ login: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   /** Возвращает ID организаций, доступных пользователю по роли и staff-назначениям. */
   async findAccessibleTenantIds(
     userId: number,

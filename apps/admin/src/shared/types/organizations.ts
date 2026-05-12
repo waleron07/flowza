@@ -44,7 +44,7 @@ export type OrganizationDetails = {
   phone: string | null;
   address: string | null;
   timezone: string;
-  workingHours: Record<string, unknown> | null;
+  workingHours: Record<string, unknown> | string | null;
   deliveryFee: number;
   minOrderAmount: number;
   subscription: string | null;
@@ -57,6 +57,7 @@ export type OrganizationManagementResponse = {
 };
 
 export type UpsertOrganizationDto = {
+  adminUserId?: number;
   name?: string;
   slug?: string;
   description?: string;
@@ -69,7 +70,7 @@ export type UpsertOrganizationDto = {
   phone?: string;
   address?: string;
   timezone?: string;
-  workingHours?: Record<string, unknown>;
+  workingHours?: string;
   deliveryFee?: number;
   minOrderAmount?: number;
   subscription?: string;

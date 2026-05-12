@@ -1,5 +1,6 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -13,9 +14,11 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../features/auth/model/useAuth";
 import {
+  useAdminUserCandidatesQuery,
   useCreateCategoryMutation,
   useCreateOrganizationMutation,
   useCreateProductMutation,
+  useDeleteOrganizationMutation,
   useManageableOrganizationsQuery,
   useOrganizationManagementQuery,
   useUpdateCategoryMutation,
@@ -25,6 +28,7 @@ import {
 import { userRoles } from "../../shared/types/users";
 
 type OrganizationFormState = {
+  adminUserId: string;
   name: string;
   slug: string;
   description: string;
@@ -43,6 +47,41 @@ type OrganizationFormState = {
   subscription: string;
   isActive: boolean;
 };
+
+type NewOrganizationFormErrors = Partial<
+  Record<
+    "adminUserId" | "name" | "slug" | "description" | "subscription",
+    string
+  >
+>;
+
+type OrganizationProfileFormErrors = Partial<
+  Record<
+    | "name"
+    | "slug"
+    | "description"
+    | "phone"
+    | "timezone"
+    | "address"
+    | "deliveryFee"
+    | "minOrderAmount"
+    | "subscription"
+    | "workingHours",
+    string
+  >
+>;
+
+type OrganizationLandingFormErrors = Partial<
+  Record<
+    | "heroTitle"
+    | "heroSubtitle"
+    | "heroDescription"
+    | "heroImageUrl"
+    | "seoTitle"
+    | "seoDescription",
+    string
+  >
+>;
 
 type CategoryFormState = {
   id: number | null;
@@ -66,6 +105,7 @@ type ProductFormState = {
 };
 
 const emptyOrganizationForm: OrganizationFormState = {
+  adminUserId: "",
   name: "",
   slug: "",
   description: "",
@@ -78,7 +118,7 @@ const emptyOrganizationForm: OrganizationFormState = {
   phone: "",
   address: "",
   timezone: "UTC",
-  workingHours: "{}",
+  workingHours: "",
   deliveryFee: "0",
   minOrderAmount: "0",
   subscription: "",
@@ -106,12 +146,31 @@ const emptyProductForm: ProductFormState = {
   isActive: true,
 };
 
-function stringifyWorkingHours(value: Record<string, unknown> | null) {
-  return JSON.stringify(value ?? {}, null, 2);
+function stringifyWorkingHours(value: Record<string, unknown> | string | null) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (!value || Object.keys(value).length === 0) {
+    return "";
+  }
+
+  return JSON.stringify(value, null, 2);
 }
 
 const previewFallbackImage =
   "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80";
+const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const slugHelperText = "Только латиница в нижнем регистре, цифры и дефисы";
+const dadataAddressToken = String(
+  import.meta.env.VITE_DADATA_TOKEN ?? "",
+).trim();
+const dadataAddressSuggestUrl =
+  "https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address";
+
+type DadataAddressResponse = {
+  suggestions?: Array<{ value?: string }>;
+};
 
 export function OrganizationsPage() {
   const { user } = useAuth();
@@ -122,6 +181,12 @@ export function OrganizationsPage() {
     useState<OrganizationFormState>(emptyOrganizationForm);
   const [newOrganizationForm, setNewOrganizationForm] =
     useState<OrganizationFormState>(emptyOrganizationForm);
+  const [newOrganizationFormErrors, setNewOrganizationFormErrors] =
+    useState<NewOrganizationFormErrors>({});
+  const [organizationProfileFormErrors, setOrganizationProfileFormErrors] =
+    useState<OrganizationProfileFormErrors>({});
+  const [organizationLandingFormErrors, setOrganizationLandingFormErrors] =
+    useState<OrganizationLandingFormErrors>({});
   const [categoryForm, setCategoryForm] =
     useState<CategoryFormState>(emptyCategoryForm);
   const [productForm, setProductForm] =
@@ -138,14 +203,20 @@ export function OrganizationsPage() {
   const [productSuccess, setProductSuccess] = useState<string | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
   const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [addressOptions, setAddressOptions] = useState<string[]>([]);
+  const [isAddressLoading, setIsAddressLoading] = useState(false);
 
   const canCreateOrganization = user?.role === userRoles.superAdmin;
   const canEditOrganization =
     user?.role === userRoles.superAdmin || user?.role === userRoles.admin;
+  const adminCandidatesQuery = useAdminUserCandidatesQuery(
+    canCreateOrganization,
+  );
 
   const createOrganizationMutation = useCreateOrganizationMutation();
   const updateOrganizationMutation =
     useUpdateOrganizationMutation(selectedTenantId);
+  const deleteOrganizationMutation = useDeleteOrganizationMutation();
   const createCategoryMutation = useCreateCategoryMutation(selectedTenantId);
   const updateCategoryMutation = useUpdateCategoryMutation(selectedTenantId);
   const createProductMutation = useCreateProductMutation(selectedTenantId);
@@ -153,6 +224,8 @@ export function OrganizationsPage() {
 
   useEffect(() => {
     if (!organizationsQuery.data?.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedTenantId(null);
       return;
     }
 
@@ -168,6 +241,7 @@ export function OrganizationsPage() {
     const { tenant } = managementQuery.data;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrganizationForm({
+      adminUserId: "",
       name: tenant.name,
       slug: tenant.slug,
       description: tenant.description ?? "",
@@ -189,6 +263,60 @@ export function OrganizationsPage() {
     setCategoryForm(emptyCategoryForm);
     setProductForm(emptyProductForm);
   }, [managementQuery.data]);
+
+  useEffect(() => {
+    const query = organizationForm.address.trim();
+
+    if (!dadataAddressToken || query.length < 3) {
+      setAddressOptions([]);
+      setIsAddressLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setIsAddressLoading(true);
+
+      try {
+        const response = await fetch(dadataAddressSuggestUrl, {
+          method: "POST",
+          mode: "cors",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Token ${dadataAddressToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query, count: 8 }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          setAddressOptions([]);
+          return;
+        }
+
+        const data = (await response.json()) as DadataAddressResponse;
+        setAddressOptions(
+          (data.suggestions ?? [])
+            .map((suggestion) => suggestion.value)
+            .filter((value): value is string => Boolean(value)),
+        );
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setAddressOptions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsAddressLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [organizationForm.address]);
 
   const categories = useMemo(
     () => managementQuery.data?.categories ?? [],
@@ -236,18 +364,109 @@ export function OrganizationsPage() {
     );
   }, [categoriesById, productSearchQuery, products]);
 
-  const parseWorkingHours = (raw: string) => {
-    const trimmed = raw.trim();
-
-    if (!trimmed) {
-      return undefined;
-    }
-
-    return JSON.parse(trimmed) as Record<string, unknown>;
-  };
-
   const previewCategories = categories.slice(0, 3);
   const previewProducts = products.slice(0, 3);
+  const previewTitle =
+    organizationForm.heroTitle || organizationForm.name || "Организация";
+  const previewSubtitle =
+    organizationForm.heroSubtitle &&
+    organizationForm.heroSubtitle.trim().toLowerCase() !==
+      previewTitle.trim().toLowerCase()
+      ? organizationForm.heroSubtitle
+      : "";
+  const previewDeliveryFee = Number(organizationForm.deliveryFee || 0);
+  const previewMinOrderAmount = Number(organizationForm.minOrderAmount || 0);
+
+  const validateNewOrganizationForm = () => {
+    const errors: NewOrganizationFormErrors = {};
+
+    if (!newOrganizationForm.name.trim()) {
+      errors.name = "Укажите название организации";
+    }
+    if (!newOrganizationForm.slug.trim()) {
+      errors.slug = "Укажите идентификатор в адресе";
+    } else if (!slugPattern.test(newOrganizationForm.slug.trim())) {
+      errors.slug = slugHelperText;
+    }
+    if (!newOrganizationForm.adminUserId) {
+      errors.adminUserId = "Выберите администратора организации";
+    }
+    if (!newOrganizationForm.description.trim()) {
+      errors.description = "Укажите описание организации";
+    }
+    if (!newOrganizationForm.subscription) {
+      errors.subscription = "Укажите дату окончания подписки";
+    }
+
+    setNewOrganizationFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateOrganizationProfileForm = () => {
+    const errors: OrganizationProfileFormErrors = {};
+
+    if (!organizationForm.name.trim()) {
+      errors.name = "Укажите название организации";
+    }
+    if (!organizationForm.slug.trim()) {
+      errors.slug = "Укажите идентификатор в адресе";
+    } else if (!slugPattern.test(organizationForm.slug.trim())) {
+      errors.slug = slugHelperText;
+    }
+    if (!organizationForm.description.trim()) {
+      errors.description = "Укажите описание организации";
+    }
+    if (!organizationForm.phone.trim()) {
+      errors.phone = "Укажите телефон";
+    }
+    if (!organizationForm.timezone.trim()) {
+      errors.timezone = "Укажите часовой пояс";
+    }
+    if (!organizationForm.address.trim()) {
+      errors.address = "Укажите адрес";
+    }
+    if (!organizationForm.deliveryFee.trim()) {
+      errors.deliveryFee = "Укажите информацию о доставке";
+    }
+    if (!organizationForm.minOrderAmount.trim()) {
+      errors.minOrderAmount = "Укажите информацию о минимальном заказе";
+    }
+    if (!organizationForm.subscription) {
+      errors.subscription = "Укажите дату окончания подписки";
+    }
+    if (!organizationForm.workingHours.trim()) {
+      errors.workingHours = "Укажите рабочие часы";
+    }
+
+    setOrganizationProfileFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateOrganizationLandingForm = () => {
+    const errors: OrganizationLandingFormErrors = {};
+
+    if (!organizationForm.heroTitle.trim()) {
+      errors.heroTitle = "Укажите заголовок главного экрана";
+    }
+    if (!organizationForm.heroSubtitle.trim()) {
+      errors.heroSubtitle = "Укажите подзаголовок главного экрана";
+    }
+    if (!organizationForm.heroDescription.trim()) {
+      errors.heroDescription = "Укажите описание главного экрана";
+    }
+    if (!organizationForm.heroImageUrl.trim()) {
+      errors.heroImageUrl = "Укажите изображение главного экрана";
+    }
+    if (!organizationForm.seoTitle.trim()) {
+      errors.seoTitle = "Укажите заголовок для поиска";
+    }
+    if (!organizationForm.seoDescription.trim()) {
+      errors.seoDescription = "Укажите описание для поиска";
+    }
+
+    setOrganizationLandingFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleCategoryActiveToggle = async (
     category: (typeof categories)[number],
@@ -346,11 +565,6 @@ export function OrganizationsPage() {
         <Typography component="h1" variant="h4" fontWeight={700}>
           Организации
         </Typography>
-        <Typography color="text.secondary" variant="body1">
-          В одном разделе собраны профиль организации, главная страница витрины,
-          категории и карточки товаров. Схема backend расширена под hero/SEO и
-          визуальные поля каталога.
-        </Typography>
       </Stack>
 
       {organizationsQuery.error instanceof Error ? (
@@ -364,10 +578,29 @@ export function OrganizationsPage() {
           alignItems={{ md: "center" }}
         >
           <TextField
+            disabled={!organizationsQuery.data?.length}
             fullWidth
             label="Активная организация для редактирования"
             onChange={(event) => {
-              setSelectedTenantId(Number(event.target.value));
+              setSelectedTenantId(
+                event.target.value ? Number(event.target.value) : null,
+              );
+            }}
+            SelectProps={{
+              displayEmpty: true,
+              renderValue: (value) => {
+                if (!value) {
+                  return "";
+                }
+
+                const organization = (organizationsQuery.data ?? []).find(
+                  (item) => item.id === Number(value),
+                );
+
+                return organization
+                  ? `${organization.name} (${organization.slug})`
+                  : "";
+              },
             }}
             select
             value={selectedTenantId ?? ""}
@@ -406,42 +639,114 @@ export function OrganizationsPage() {
             <Typography variant="h5" fontWeight={700}>
               Создать новую организацию
             </Typography>
+            {adminCandidatesQuery.error instanceof Error ? (
+              <Alert severity="error">{adminCandidatesQuery.error.message}</Alert>
+            ) : null}
             <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
               <TextField
+                error={Boolean(newOrganizationFormErrors.name)}
                 fullWidth
+                helperText={newOrganizationFormErrors.name}
                 label="Название"
                 onChange={(event) => {
+                  setNewOrganizationFormErrors((current) => ({
+                    ...current,
+                    name: undefined,
+                  }));
                   setNewOrganizationForm((current) => ({
                     ...current,
                     name: event.target.value,
                   }));
                 }}
+                required
                 value={newOrganizationForm.name}
               />
               <TextField
+                error={Boolean(newOrganizationFormErrors.slug)}
                 fullWidth
-                label="Slug"
+                helperText={newOrganizationFormErrors.slug ?? slugHelperText}
+                label="Идентификатор в адресе"
                 onChange={(event) => {
+                  setNewOrganizationFormErrors((current) => ({
+                    ...current,
+                    slug: undefined,
+                  }));
                   setNewOrganizationForm((current) => ({
                     ...current,
-                    slug: event.target.value,
+                    slug: event.target.value.trim().toLowerCase(),
                   }));
                 }}
+                required
                 value={newOrganizationForm.slug}
               />
             </Stack>
             <TextField
+              error={Boolean(newOrganizationFormErrors.adminUserId)}
               fullWidth
+              helperText={
+                newOrganizationFormErrors.adminUserId ??
+                "Выберите существующего пользователя с ролью admin"
+              }
+              label="Администратор организации"
+              onChange={(event) => {
+                setNewOrganizationFormErrors((current) => ({
+                  ...current,
+                  adminUserId: undefined,
+                }));
+                setNewOrganizationForm((current) => ({
+                  ...current,
+                  adminUserId: event.target.value,
+                }));
+              }}
+              required
+              select
+              value={newOrganizationForm.adminUserId}
+            >
+              {(adminCandidatesQuery.data ?? []).map((adminUser) => (
+                <MenuItem key={adminUser.id} value={String(adminUser.id)}>
+                  {adminUser.login} ({adminUser.email}, {adminUser.phone})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              error={Boolean(newOrganizationFormErrors.description)}
+              fullWidth
+              helperText={newOrganizationFormErrors.description}
               label="Описание"
               multiline
               minRows={2}
               onChange={(event) => {
+                setNewOrganizationFormErrors((current) => ({
+                  ...current,
+                  description: undefined,
+                }));
                 setNewOrganizationForm((current) => ({
                   ...current,
                   description: event.target.value,
                 }));
               }}
+              required
               value={newOrganizationForm.description}
+            />
+            <TextField
+              error={Boolean(newOrganizationFormErrors.subscription)}
+              fullWidth
+              helperText={newOrganizationFormErrors.subscription}
+              label="Дата окончания подписки"
+              onChange={(event) => {
+                setNewOrganizationFormErrors((current) => ({
+                  ...current,
+                  subscription: undefined,
+                }));
+                setNewOrganizationForm((current) => ({
+                  ...current,
+                  subscription: event.target.value,
+                }));
+              }}
+              required
+              type="date"
+              value={newOrganizationForm.subscription}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
             <Button
               disabled={createOrganizationMutation.isPending}
@@ -449,14 +754,22 @@ export function OrganizationsPage() {
                 try {
                   setOrganizationError(null);
                   setOrganizationSuccess(null);
+                  if (!validateNewOrganizationForm()) {
+                    setOrganizationError("Заполните обязательные поля");
+                    return;
+                  }
+                  const adminUserId = Number(newOrganizationForm.adminUserId);
+
                   const created = await createOrganizationMutation.mutateAsync({
+                    adminUserId,
                     name: newOrganizationForm.name.trim(),
                     slug: newOrganizationForm.slug.trim(),
-                    description:
-                      newOrganizationForm.description.trim() || undefined,
+                    description: newOrganizationForm.description.trim(),
+                    subscription: newOrganizationForm.subscription,
                   });
                   setOrganizationSuccess(`Организация ${created.name} создана`);
                   setNewOrganizationForm(emptyOrganizationForm);
+                  setNewOrganizationFormErrors({});
                   if (typeof created.id === "number") {
                     setSelectedTenantId(created.id);
                   }
@@ -503,7 +816,7 @@ export function OrganizationsPage() {
           >
             <Stack spacing={2.5}>
               <Typography variant="h5" fontWeight={700}>
-                Preview витрины
+                Предпросмотр витрины
               </Typography>
               <Paper
                 elevation={0}
@@ -523,7 +836,7 @@ export function OrganizationsPage() {
                     previewProducts[0]?.imageUrl ||
                     previewFallbackImage
                   }
-                  alt={organizationForm.heroTitle || organizationForm.name}
+                  alt={previewTitle}
                   sx={{
                     position: "absolute",
                     inset: 0,
@@ -546,17 +859,20 @@ export function OrganizationsPage() {
                     zIndex: 1,
                     p: { xs: 3, md: 4 },
                     gap: 1.5,
+                    alignItems: "center",
+                    textAlign: "center",
                   }}
                 >
-                  <Typography sx={{ opacity: 0.82 }} variant="overline">
-                    {organizationForm.heroSubtitle || organizationForm.name}
-                  </Typography>
+                  {previewSubtitle ? (
+                    <Typography sx={{ opacity: 0.82 }} variant="overline">
+                      {previewSubtitle}
+                    </Typography>
+                  ) : null}
                   <Typography variant="h3">
-                    {organizationForm.heroTitle ||
-                      `Меню ${organizationForm.name}`}
+                    {previewTitle}
                   </Typography>
                   <Typography
-                    sx={{ maxWidth: 720, opacity: 0.92 }}
+                    sx={{ maxWidth: 720, opacity: 0.92, textAlign: "center" }}
                     variant="body1"
                   >
                     {organizationForm.heroDescription ||
@@ -564,14 +880,18 @@ export function OrganizationsPage() {
                       "Добавьте hero-текст, чтобы показать предложение организации."}
                   </Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
-                    <Chip
-                      label={`Доставка ${organizationForm.deliveryFee || "0"} RUB`}
-                      size="small"
-                    />
-                    <Chip
-                      label={`Мин. заказ ${organizationForm.minOrderAmount || "0"} RUB`}
-                      size="small"
-                    />
+                    {previewDeliveryFee > 0 ? (
+                      <Chip
+                        label={`Доставка ${previewDeliveryFee} RUB`}
+                        size="small"
+                      />
+                    ) : null}
+                    {previewMinOrderAmount > 0 ? (
+                      <Chip
+                        label={`Мин. заказ ${previewMinOrderAmount} RUB`}
+                        size="small"
+                      />
+                    ) : null}
                     {organizationForm.address ? (
                       <Chip label={organizationForm.address} size="small" />
                     ) : null}
@@ -585,7 +905,7 @@ export function OrganizationsPage() {
                   sx={{ p: 2.5, borderRadius: 3, flex: 1, bgcolor: "grey.50" }}
                 >
                   <Stack spacing={1.5}>
-                    <Typography variant="h6">SEO preview</Typography>
+                    <Typography variant="h6">Предпросмотр в поиске</Typography>
                     <Typography color="primary.main" variant="body1">
                       {organizationForm.seoTitle ||
                         organizationForm.heroTitle ||
@@ -732,118 +1052,211 @@ export function OrganizationsPage() {
               </Typography>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.name)}
                   fullWidth
+                  helperText={organizationProfileFormErrors.name}
                   label="Название"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      name: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       name: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.name}
                 />
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.slug)}
                   fullWidth
-                  label="Slug"
+                  helperText={organizationProfileFormErrors.slug ?? slugHelperText}
+                  label="Идентификатор в адресе"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      slug: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
-                      slug: event.target.value,
+                      slug: event.target.value.trim().toLowerCase(),
                     }));
                   }}
+                  required
                   value={organizationForm.slug}
                 />
               </Stack>
 
               <TextField
+                error={Boolean(organizationProfileFormErrors.description)}
                 fullWidth
+                helperText={organizationProfileFormErrors.description}
                 label="Описание организации"
                 multiline
                 minRows={2}
                 onChange={(event) => {
+                  setOrganizationProfileFormErrors((current) => ({
+                    ...current,
+                    description: undefined,
+                  }));
                   setOrganizationForm((current) => ({
                     ...current,
                     description: event.target.value,
                   }));
                 }}
+                required
                 value={organizationForm.description}
               />
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.phone)}
                   fullWidth
+                  helperText={organizationProfileFormErrors.phone}
                   label="Телефон"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      phone: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       phone: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.phone}
                 />
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.timezone)}
                   fullWidth
+                  helperText={organizationProfileFormErrors.timezone}
                   label="Часовой пояс"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      timezone: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       timezone: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.timezone}
                 />
               </Stack>
 
-              <TextField
-                fullWidth
-                label="Адрес"
-                onChange={(event) => {
+              <Autocomplete
+                freeSolo
+                loading={isAddressLoading}
+                loadingText="Загружаем адреса..."
+                noOptionsText={
+                  dadataAddressToken
+                    ? "Адреса не найдены"
+                    : "Добавьте VITE_DADATA_TOKEN для подсказок DaData"
+                }
+                onChange={(_, value) => {
+                  const nextAddress = typeof value === "string" ? value : "";
+                  setOrganizationProfileFormErrors((current) => ({
+                    ...current,
+                    address: undefined,
+                  }));
                   setOrganizationForm((current) => ({
                     ...current,
-                    address: event.target.value,
+                    address: nextAddress,
                   }));
                 }}
+                onInputChange={(_, value) => {
+                  setOrganizationProfileFormErrors((current) => ({
+                    ...current,
+                    address: undefined,
+                  }));
+                  setOrganizationForm((current) => ({
+                    ...current,
+                    address: value,
+                  }));
+                }}
+                options={addressOptions}
                 value={organizationForm.address}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    error={Boolean(organizationProfileFormErrors.address)}
+                    fullWidth
+                    helperText={
+                      organizationProfileFormErrors.address ??
+                      (dadataAddressToken
+                        ? "Начните вводить адрес, чтобы увидеть подсказки"
+                        : "Для подсказок нужен VITE_DADATA_TOKEN в .env.local")
+                    }
+                    label="Адрес"
+                    required
+                  />
+                )}
               />
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.deliveryFee)}
                   fullWidth
+                  helperText={organizationProfileFormErrors.deliveryFee}
                   label="Стоимость доставки"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      deliveryFee: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       deliveryFee: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.deliveryFee}
                 />
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.minOrderAmount)}
                   fullWidth
+                  helperText={organizationProfileFormErrors.minOrderAmount}
                   label="Минимальный заказ"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      minOrderAmount: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       minOrderAmount: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.minOrderAmount}
                 />
               </Stack>
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
+                  error={Boolean(organizationProfileFormErrors.subscription)}
                   fullWidth
+                  helperText={organizationProfileFormErrors.subscription}
                   label="Дата окончания подписки"
                   onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      subscription: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       subscription: event.target.value,
                     }));
                   }}
+                  required
                   type="date"
                   value={organizationForm.subscription}
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{ inputLabel: { shrink: true } }}
                 />
                 <TextField
                   fullWidth
@@ -863,16 +1276,23 @@ export function OrganizationsPage() {
               </Stack>
 
               <TextField
+                error={Boolean(organizationProfileFormErrors.workingHours)}
                 fullWidth
-                label="Working hours JSON"
+                helperText={organizationProfileFormErrors.workingHours}
+                label="Рабочие часы"
                 multiline
                 minRows={4}
                 onChange={(event) => {
+                  setOrganizationProfileFormErrors((current) => ({
+                    ...current,
+                    workingHours: undefined,
+                  }));
                   setOrganizationForm((current) => ({
                     ...current,
                     workingHours: event.target.value,
                   }));
                 }}
+                required
                 value={organizationForm.workingHours}
               />
 
@@ -884,17 +1304,18 @@ export function OrganizationsPage() {
                   try {
                     setOrganizationError(null);
                     setOrganizationSuccess(null);
+                    if (!validateOrganizationProfileForm()) {
+                      setOrganizationError("Заполните обязательные поля профиля");
+                      return;
+                    }
                     await updateOrganizationMutation.mutateAsync({
                       name: organizationForm.name.trim(),
                       slug: organizationForm.slug.trim(),
-                      description:
-                        organizationForm.description.trim() || undefined,
-                      phone: organizationForm.phone.trim() || undefined,
-                      address: organizationForm.address.trim() || undefined,
-                      timezone: organizationForm.timezone.trim() || undefined,
-                      workingHours: parseWorkingHours(
-                        organizationForm.workingHours,
-                      ),
+                      description: organizationForm.description.trim(),
+                      phone: organizationForm.phone.trim(),
+                      address: organizationForm.address.trim(),
+                      timezone: organizationForm.timezone.trim(),
+                      workingHours: organizationForm.workingHours.trim(),
                       deliveryFee: Number(organizationForm.deliveryFee || 0),
                       minOrderAmount: Number(
                         organizationForm.minOrderAmount || 0,
@@ -915,6 +1336,49 @@ export function OrganizationsPage() {
               >
                 Сохранить профиль организации
               </Button>
+              {user?.role === userRoles.superAdmin ? (
+                <Button
+                  color="error"
+                  disabled={
+                    !selectedTenantId || deleteOrganizationMutation.isPending
+                  }
+                  onClick={async () => {
+                    if (!selectedTenantId) {
+                      return;
+                    }
+
+                    const confirmed = window.confirm(
+                      `Удалить организацию "${organizationForm.name}"? Это действие нельзя отменить.`,
+                    );
+                    if (!confirmed) {
+                      return;
+                    }
+
+                    try {
+                      setOrganizationError(null);
+                      setOrganizationSuccess(null);
+                      await deleteOrganizationMutation.mutateAsync(
+                        selectedTenantId,
+                      );
+                      setOrganizationSuccess("Организация удалена");
+                      setSelectedTenantId(
+                        (organizationsQuery.data ?? []).find(
+                          (organization) => organization.id !== selectedTenantId,
+                        )?.id ?? null,
+                      );
+                    } catch (error) {
+                      setOrganizationError(
+                        error instanceof Error
+                          ? error.message
+                          : "Не удалось удалить организацию",
+                      );
+                    }
+                  }}
+                  variant="outlined"
+                >
+                  Удалить организацию
+                </Button>
+              ) : null}
             </Stack>
           </Paper>
 
@@ -925,73 +1389,115 @@ export function OrganizationsPage() {
               </Typography>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
+                  error={Boolean(organizationLandingFormErrors.heroTitle)}
                   fullWidth
-                  label="Hero title"
+                  helperText={organizationLandingFormErrors.heroTitle}
+                  label="Заголовок главного экрана"
                   onChange={(event) => {
+                    setOrganizationLandingFormErrors((current) => ({
+                      ...current,
+                      heroTitle: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       heroTitle: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.heroTitle}
                 />
                 <TextField
+                  error={Boolean(organizationLandingFormErrors.heroSubtitle)}
                   fullWidth
-                  label="Hero subtitle"
+                  helperText={organizationLandingFormErrors.heroSubtitle}
+                  label="Подзаголовок главного экрана"
                   onChange={(event) => {
+                    setOrganizationLandingFormErrors((current) => ({
+                      ...current,
+                      heroSubtitle: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       heroSubtitle: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.heroSubtitle}
                 />
               </Stack>
               <TextField
+                error={Boolean(organizationLandingFormErrors.heroDescription)}
                 fullWidth
-                label="Hero description"
+                helperText={organizationLandingFormErrors.heroDescription}
+                label="Описание главного экрана"
                 multiline
                 minRows={3}
                 onChange={(event) => {
+                  setOrganizationLandingFormErrors((current) => ({
+                    ...current,
+                    heroDescription: undefined,
+                  }));
                   setOrganizationForm((current) => ({
                     ...current,
                     heroDescription: event.target.value,
                   }));
                 }}
+                required
                 value={organizationForm.heroDescription}
               />
               <TextField
+                error={Boolean(organizationLandingFormErrors.heroImageUrl)}
                 fullWidth
-                label="Hero image URL"
+                helperText={organizationLandingFormErrors.heroImageUrl}
+                label="Изображение главного экрана"
                 onChange={(event) => {
+                  setOrganizationLandingFormErrors((current) => ({
+                    ...current,
+                    heroImageUrl: undefined,
+                  }));
                   setOrganizationForm((current) => ({
                     ...current,
                     heroImageUrl: event.target.value,
                   }));
                 }}
+                required
                 value={organizationForm.heroImageUrl}
               />
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
+                  error={Boolean(organizationLandingFormErrors.seoTitle)}
                   fullWidth
-                  label="SEO title"
+                  helperText={organizationLandingFormErrors.seoTitle}
+                  label="Заголовок для поиска"
                   onChange={(event) => {
+                    setOrganizationLandingFormErrors((current) => ({
+                      ...current,
+                      seoTitle: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       seoTitle: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.seoTitle}
                 />
                 <TextField
+                  error={Boolean(organizationLandingFormErrors.seoDescription)}
                   fullWidth
-                  label="SEO description"
+                  helperText={organizationLandingFormErrors.seoDescription}
+                  label="Описание для поиска"
                   onChange={(event) => {
+                    setOrganizationLandingFormErrors((current) => ({
+                      ...current,
+                      seoDescription: undefined,
+                    }));
                     setOrganizationForm((current) => ({
                       ...current,
                       seoDescription: event.target.value,
                     }));
                   }}
+                  required
                   value={organizationForm.seoDescription}
                 />
               </Stack>
@@ -1004,17 +1510,19 @@ export function OrganizationsPage() {
                   try {
                     setOrganizationError(null);
                     setOrganizationSuccess(null);
+                    if (!validateOrganizationLandingForm()) {
+                      setOrganizationError(
+                        "Заполните обязательные поля главной страницы",
+                      );
+                      return;
+                    }
                     await updateOrganizationMutation.mutateAsync({
-                      heroTitle: organizationForm.heroTitle.trim() || undefined,
-                      heroSubtitle:
-                        organizationForm.heroSubtitle.trim() || undefined,
-                      heroDescription:
-                        organizationForm.heroDescription.trim() || undefined,
-                      heroImageUrl:
-                        organizationForm.heroImageUrl.trim() || undefined,
-                      seoTitle: organizationForm.seoTitle.trim() || undefined,
-                      seoDescription:
-                        organizationForm.seoDescription.trim() || undefined,
+                      heroTitle: organizationForm.heroTitle.trim(),
+                      heroSubtitle: organizationForm.heroSubtitle.trim(),
+                      heroDescription: organizationForm.heroDescription.trim(),
+                      heroImageUrl: organizationForm.heroImageUrl.trim(),
+                      seoTitle: organizationForm.seoTitle.trim(),
+                      seoDescription: organizationForm.seoDescription.trim(),
                     });
                     setOrganizationSuccess("Контент главной страницы обновлен");
                   } catch (error) {
@@ -1043,7 +1551,7 @@ export function OrganizationsPage() {
                 onChange={(event) => {
                   setCategorySearchQuery(event.target.value);
                 }}
-                placeholder="Название, описание, image URL"
+                placeholder="Название, описание, адрес изображения"
                 value={categorySearchQuery}
               />
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -1060,7 +1568,7 @@ export function OrganizationsPage() {
                 />
                 <TextField
                   fullWidth
-                  label="Sort order"
+                  label="Порядок сортировки"
                   onChange={(event) => {
                     setCategoryForm((current) => ({
                       ...current,
@@ -1086,7 +1594,7 @@ export function OrganizationsPage() {
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
                   fullWidth
-                  label="Image URL"
+                  label="Адрес изображения"
                   onChange={(event) => {
                     setCategoryForm((current) => ({
                       ...current,
@@ -1252,7 +1760,7 @@ export function OrganizationsPage() {
                 onChange={(event) => {
                   setProductSearchQuery(event.target.value);
                 }}
-                placeholder="Название, описание, badge, категория"
+                placeholder="Название, описание, метка, категория"
                 value={productSearchQuery}
               />
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -1326,7 +1834,7 @@ export function OrganizationsPage() {
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
                   fullWidth
-                  label="Image URL"
+                  label="Адрес изображения"
                   onChange={(event) => {
                     setProductForm((current) => ({
                       ...current,
@@ -1337,7 +1845,7 @@ export function OrganizationsPage() {
                 />
                 <TextField
                   fullWidth
-                  label="Badge text"
+                  label="Текст метки"
                   onChange={(event) => {
                     setProductForm((current) => ({
                       ...current,

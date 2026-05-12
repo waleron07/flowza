@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { PrismaService } from '../database/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -18,6 +22,10 @@ describe('Сервис организаций', () => {
   const tenantFindUniqueMock = jest.fn();
   const tenantUpdateMock = jest.fn();
   const tenantDeleteMock = jest.fn();
+  const userFindUniqueMock = jest.fn();
+  const userUpdateMock = jest.fn();
+  const userTenantAccessCreateMock = jest.fn();
+  const transactionMock = jest.fn();
   const categoryFindManyMock = jest.fn();
   const productFindManyMock = jest.fn();
   const normalizeOrganizationIdsMock = jest.fn((organizationIds?: number[]) =>
@@ -40,6 +48,14 @@ describe('Сервис организаций', () => {
     product: {
       findMany: productFindManyMock,
     },
+    user: {
+      findUnique: userFindUniqueMock,
+      update: userUpdateMock,
+    },
+    userTenantAccess: {
+      create: userTenantAccessCreateMock,
+    },
+    $transaction: transactionMock,
   } as unknown as PrismaService;
 
   const tenantAccessService = {
@@ -56,6 +72,11 @@ describe('Сервис организаций', () => {
     tenantFindUniqueMock.mockReset();
     tenantUpdateMock.mockReset();
     tenantDeleteMock.mockReset();
+    userFindUniqueMock.mockReset();
+    userUpdateMock.mockReset();
+    userTenantAccessCreateMock.mockReset();
+    transactionMock.mockReset();
+    transactionMock.mockImplementation((callback) => callback(prisma));
     categoryFindManyMock.mockReset();
     productFindManyMock.mockReset();
     normalizeOrganizationIdsMock.mockReset();
@@ -225,10 +246,19 @@ describe('Сервис организаций', () => {
   });
 
   it('создает организацию', async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: 15,
+      role: UserRole.ADMIN,
+      isActive: true,
+      primaryTenantId: null,
+    });
     tenantCreateMock.mockResolvedValue({ id: 1, name: 'Roma Pizza' });
+    userTenantAccessCreateMock.mockResolvedValue({ userId: 15, tenantId: 1 });
+    userUpdateMock.mockResolvedValue({ id: 15 });
 
     await expect(
       service.createTenant({
+        adminUserId: 15,
         name: 'Roma Pizza',
         slug: 'roma-pizza',
         description: 'Итальянская кухня',
@@ -257,6 +287,33 @@ describe('Сервис организаций', () => {
         minOrderAmount: 1000,
       },
     });
+    expect(userTenantAccessCreateMock).toHaveBeenCalledWith({
+      data: { userId: 15, tenantId: 1 },
+    });
+    expect(userUpdateMock).toHaveBeenCalledWith({
+      where: { id: 15 },
+      data: { primaryTenantId: 1 },
+    });
+  });
+
+  it('не создает организацию без активного admin-пользователя', async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: 15,
+      role: UserRole.OPERATOR,
+      isActive: true,
+      primaryTenantId: null,
+    });
+
+    await expect(
+      service.createTenant({
+        adminUserId: 15,
+        name: 'Roma Pizza',
+        slug: 'roma-pizza',
+        description: 'Итальянская кухня',
+        subscription: '2026-12-31T00:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tenantCreateMock).not.toHaveBeenCalled();
   });
 
   it('возвращает доступные организации сотрудника', async () => {

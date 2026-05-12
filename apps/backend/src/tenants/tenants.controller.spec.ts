@@ -275,10 +275,12 @@ describe('Контроллер организаций', () => {
 
     await expect(
       controller.createTenant({
+        adminUserId: 15,
         name: 'Flowza Cafe',
         slug: 'flowza-cafe',
         description: 'Кафе',
         timezone: 'Europe/Moscow',
+        subscription: '2026-12-31T00:00:00.000Z',
       }),
     ).resolves.toEqual(tenant);
     expect(service.createTenant).toHaveBeenCalledTimes(1);

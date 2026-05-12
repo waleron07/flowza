@@ -8,6 +8,7 @@ import type {
   UpsertOrganizationDto,
   UpsertProductDto,
 } from "../../../shared/types/organizations";
+import type { AdminUserCandidate } from "../../../shared/types/users";
 
 export async function getManageableOrganizationsRequest() {
   try {
@@ -37,6 +38,20 @@ export async function getOrganizationManagementRequest(tenantId: number) {
   }
 }
 
+export async function getAdminUserCandidatesRequest() {
+  try {
+    const response = await httpClient.get<AdminUserCandidate[]>(
+      "/users/admin-candidates",
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Не удалось загрузить администраторов"),
+    );
+  }
+}
+
 export async function createOrganizationRequest(
   payload: UpsertOrganizationDto,
 ) {
@@ -62,6 +77,18 @@ export async function updateOrganizationRequest(
   } catch (error) {
     throw new Error(
       getApiErrorMessage(error, "Не удалось обновить организацию"),
+    );
+  }
+}
+
+export async function deleteOrganizationRequest(tenantId: number) {
+  try {
+    const response = await httpClient.delete(`/tenants/${tenantId}`);
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Не удалось удалить организацию"),
     );
   }
 }
@@ -132,6 +159,15 @@ export function useOrganizationManagementQuery(tenantId: number | null) {
   });
 }
 
+export function useAdminUserCandidatesQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin-user-candidates"],
+    queryFn: getAdminUserCandidatesRequest,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateOrganizationMutation() {
   const queryClient = useQueryClient();
 
@@ -160,6 +196,19 @@ export function useUpdateOrganizationMutation(tenantId: number | null) {
           queryKey: ["organization-management", tenantId],
         }),
       ]);
+    },
+  });
+}
+
+export function useDeleteOrganizationMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteOrganizationRequest,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["manageable-organizations"],
+      });
     },
   });
 }

@@ -1,4 +1,15 @@
-import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
+import { Visibility, VisibilityOff } from '@mui/icons-material'
+import {
+  Alert,
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  Paper,
+  TextField,
+  Typography,
+} from '@mui/material'
+import { useState } from 'react'
 import { Form, Formik } from 'formik'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import * as Yup from 'yup'
@@ -24,6 +35,7 @@ const initialValues: LoginFormValues = {
 export function LoginPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [showPassword, setShowPassword] = useState(false)
   const { login } = useAuth()
   const redirectTo = getPostAuthRedirect(location.search)
 
@@ -86,8 +98,24 @@ export function LoginPage() {
                   onBlur={handleBlur}
                   onChange={handleChange}
                   placeholder="Введите пароль"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={values.password}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                            edge="end"
+                            onClick={() => setShowPassword((current) => !current)}
+                            onMouseDown={(event) => event.preventDefault()}
+                          >
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
                 />
 
                 <Button

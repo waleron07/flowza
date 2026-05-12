@@ -26,6 +26,19 @@ export class UsersManagementService {
     private readonly auditService: AuditService,
   ) {}
 
+  /** Возвращает активных admin-пользователей, которых superAdmin может назначить организации. */
+  async findAdminCandidates() {
+    const users = await this.usersService.findActiveUsersByRole(UserRole.ADMIN);
+
+    return users.map((user) => ({
+      id: user.id,
+      login: user.login,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+    }));
+  }
+
   /** Проверяет, разрешено ли actor создавать пользователя с указанной ролью. */
   private validateRoleCreation(actorRole: UserRole, targetRole: UserRole) {
     if (targetRole === UserRole.USER) {

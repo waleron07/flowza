@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThemeProvider } from "@mui/material";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +14,7 @@ import { appTheme } from "../../app/theme";
 
 const mockedCreateOrganizationMutateAsync = vi.fn();
 const mockedUpdateOrganizationMutateAsync = vi.fn();
+const mockedDeleteOrganizationMutateAsync = vi.fn();
 const mockedCreateCategoryMutateAsync = vi.fn();
 const mockedUpdateCategoryMutateAsync = vi.fn();
 const mockedCreateProductMutateAsync = vi.fn();
@@ -68,6 +75,15 @@ const managementView = {
     },
   ],
 };
+const adminUserCandidates = [
+  {
+    id: 15,
+    login: "org_admin",
+    email: "admin@example.com",
+    phone: "+79990000001",
+    role: "admin",
+  },
+];
 const confirmMock = vi.fn(() => true);
 
 vi.mock("../../features/auth/model/useAuth", () => ({
@@ -92,6 +108,10 @@ vi.mock("../../features/organizations/api/organizationsApi", () => ({
     data: managementView,
     error: null,
   }),
+  useAdminUserCandidatesQuery: () => ({
+    data: adminUserCandidates,
+    error: null,
+  }),
   useCreateOrganizationMutation: () => ({
     isPending: false,
     mutateAsync: mockedCreateOrganizationMutateAsync,
@@ -99,6 +119,10 @@ vi.mock("../../features/organizations/api/organizationsApi", () => ({
   useUpdateOrganizationMutation: () => ({
     isPending: false,
     mutateAsync: mockedUpdateOrganizationMutateAsync,
+  }),
+  useDeleteOrganizationMutation: () => ({
+    isPending: false,
+    mutateAsync: mockedDeleteOrganizationMutateAsync,
   }),
   useCreateCategoryMutation: () => ({
     isPending: false,
@@ -134,6 +158,7 @@ describe("OrganizationsPage", () => {
     confirmMock.mockClear();
     mockedCreateOrganizationMutateAsync.mockReset();
     mockedUpdateOrganizationMutateAsync.mockReset();
+    mockedDeleteOrganizationMutateAsync.mockReset();
     mockedCreateCategoryMutateAsync.mockReset();
     mockedUpdateCategoryMutateAsync.mockReset();
     mockedCreateProductMutateAsync.mockReset();
@@ -144,16 +169,17 @@ describe("OrganizationsPage", () => {
     renderPage();
 
     expect(
-      screen.getByRole("heading", { name: /preview витрины/i }),
+      screen.getByRole("heading", { name: /предпросмотр витрины/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/свежая выпечка и кофе/i)).toBeInTheDocument();
     expect(screen.getByText(/завтраки весь день/i)).toBeInTheDocument();
     expect(screen.getAllByText(/десерты/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/наполеон/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/seo preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/предпросмотр в поиске/i)).toBeInTheDocument();
   });
 
   it("позволяет superAdmin заполнить форму новой организации", async () => {
+    const user = userEvent.setup();
     mockedCreateOrganizationMutateAsync.mockResolvedValue({
       id: 10,
       name: "New Place",
@@ -161,24 +187,46 @@ describe("OrganizationsPage", () => {
 
     renderPage();
 
-    await act(async () => {
-      fireEvent.change(screen.getAllByLabelText(/^название$/i)[0], {
-        target: { value: "New Place" },
-      });
-      fireEvent.change(screen.getAllByLabelText(/^slug$/i)[0], {
-        target: { value: "new-place" },
-      });
-      fireEvent.click(
-        screen.getByRole("button", { name: /создать организацию/i }),
-      );
-    });
+    const createSection = screen
+      .getByRole("heading", { name: /создать новую организацию/i })
+      .closest(".MuiPaper-root") as HTMLElement;
+    const createSectionQueries = within(createSection);
+    const nameInput = createSectionQueries.getByLabelText(/^название/i);
+    const slugInput =
+      createSectionQueries.getByLabelText(/^идентификатор в адресе/i);
+    const descriptionInput = createSectionQueries.getByLabelText(/^описание/i);
+    const subscriptionInput = createSectionQueries.getByLabelText(
+      /^дата окончания подписки/i,
+    );
 
-    expect(mockedCreateOrganizationMutateAsync).toHaveBeenCalledWith({
-      name: "New Place",
-      slug: "new-place",
-      description: undefined,
+    await user.type(nameInput, "New Place");
+    await user.type(slugInput, "new-place");
+    await user.click(
+      screen.getByRole("combobox", { name: /администратор организации/i }),
+    );
+    await user.click(await screen.findByRole("option", { name: /org_admin/i }));
+    await user.type(descriptionInput, "Описание заведения");
+    fireEvent.change(subscriptionInput, { target: { value: "2026-12-31" } });
+    await waitFor(() => {
+      expect(nameInput).toHaveValue("New Place");
+      expect(slugInput).toHaveValue("new-place");
+      expect(descriptionInput).toHaveValue("Описание заведения");
+      expect(subscriptionInput).toHaveValue("2026-12-31");
     });
-  });
+    await user.click(
+      screen.getByRole("button", { name: /создать организацию/i }),
+    );
+
+    await waitFor(() => {
+      expect(mockedCreateOrganizationMutateAsync).toHaveBeenCalledWith({
+        adminUserId: 15,
+        name: "New Place",
+        slug: "new-place",
+        description: "Описание заведения",
+        subscription: "2026-12-31",
+      });
+    });
+  }, 15_000);
 
   it("позволяет быстро деактивировать категорию и товар", async () => {
     const user = userEvent.setup();
@@ -225,6 +273,49 @@ describe("OrganizationsPage", () => {
         isActive: false,
       },
     });
+  });
+
+  it("отправляет запрос при сохранении профиля организации", async () => {
+    const user = userEvent.setup();
+    mockedUpdateOrganizationMutateAsync.mockResolvedValue({ id: 10 });
+
+    renderPage();
+
+    await user.click(
+      screen.getByRole("button", { name: /сохранить профиль организации/i }),
+    );
+
+    await waitFor(() => {
+      expect(mockedUpdateOrganizationMutateAsync).toHaveBeenCalledWith({
+        name: "Flowza Cafe",
+        slug: "flowza-cafe",
+        description: "Городское кафе",
+        phone: "+79990000000",
+        address: "Москва",
+        timezone: "Europe/Moscow",
+        workingHours: JSON.stringify({ mon: "08:00-22:00" }, null, 2),
+        deliveryFee: 150,
+        minOrderAmount: 900,
+        subscription: "2026-12-31",
+        isActive: true,
+      });
+    });
+  });
+
+  it("позволяет superAdmin удалить организацию после подтверждения", async () => {
+    const user = userEvent.setup();
+    mockedDeleteOrganizationMutateAsync.mockResolvedValue({ id: 10 });
+
+    renderPage();
+
+    await user.click(
+      screen.getByRole("button", { name: /удалить организацию/i }),
+    );
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      'Удалить организацию "Flowza Cafe"? Это действие нельзя отменить.',
+    );
+    expect(mockedDeleteOrganizationMutateAsync).toHaveBeenCalledWith(10);
   });
 
   it("фильтрует категории и товары по поисковому запросу", async () => {
