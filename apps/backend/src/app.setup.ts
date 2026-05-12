@@ -77,6 +77,10 @@ export function configureApp(
 
   const logger = new Logger('HttpAccess');
 
+  /** Локальные origins: localhost, 127.0.0.1, IPv6 ::1 (Chrome на Windows часто шлёт такой Origin). */
+  const isLocalDevOrigin = (origin: string) =>
+    /^https?:\/\/(\[::1\]|localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+
   app.enableCors({
     origin: (
       origin: string | undefined,
@@ -87,11 +91,7 @@ export function configureApp(
         return;
       }
 
-      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(
-        origin,
-      );
-
-      if (allowedOrigins.has(origin) || isLocalhost) {
+      if (allowedOrigins.has(origin) || isLocalDevOrigin(origin)) {
         callback(null, true);
         return;
       }
@@ -99,7 +99,13 @@ export function configureApp(
       callback(new Error('Источник запрещен CORS-политикой'));
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Accept-Language',
+      REQUEST_ID_HEADER,
+    ],
   });
 
   app.use((req: Request, res: Response, next: NextFunction) => {
