@@ -17,3 +17,11 @@ export type CreateStaffUserDto = {
   primaryTenantId?: number
   organizationIds?: number[]
 }
+
+export type AdminUserCandidate = {
+  id: number
+  login: string
+  email: string
+  phone: string
+  role: typeof userRoles.admin
+}

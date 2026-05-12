@@ -3,7 +3,6 @@ import {
   IsBoolean,
   IsDateString,
   IsInt,
-  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -87,10 +86,10 @@ export class UpdateTenantDto {
   @IsString({ message: 'Часовой пояс должен быть строкой' })
   timezone?: string;
 
-  /** Новое расписание работы организации в JSON-формате. */
+  /** Новое расписание работы организации в свободной текстовой форме. */
   @IsOptional()
-  @IsObject({ message: 'Расписание работы должно быть объектом' })
-  workingHours?: Record<string, unknown>;
+  @IsString({ message: 'Расписание работы должно быть строкой' })
+  workingHours?: string;
 
   /** Новая стоимость доставки в минимальных единицах валюты. */
   @IsOptional()

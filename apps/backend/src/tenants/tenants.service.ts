@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -235,27 +236,60 @@ export class TenantsService {
 
   /** Создает организацию с настройками публичной витрины и доставки. */
   async createTenant(dto: CreateTenantDto) {
-    return this.prisma.tenant.create({
-      data: {
-        name: dto.name,
-        slug: dto.slug,
-        description: dto.description,
-        heroTitle: dto.heroTitle,
-        heroSubtitle: dto.heroSubtitle,
-        heroDescription: dto.heroDescription,
-        heroImageUrl: dto.heroImageUrl,
-        seoTitle: dto.seoTitle,
-        seoDescription: dto.seoDescription,
-        phone: dto.phone,
-        address: dto.address,
-        timezone: dto.timezone ?? 'UTC',
-        workingHours: dto.workingHours as Prisma.InputJsonValue | undefined,
-        deliveryFee: dto.deliveryFee ?? 0,
-        minOrderAmount: dto.minOrderAmount ?? 0,
-        ...(dto.subscription
-          ? { subscription: new Date(dto.subscription) }
-          : {}),
-      },
+    const adminUser = await this.prisma.user.findUnique({
+      where: { id: dto.adminUserId },
+      select: { id: true, role: true, isActive: true, primaryTenantId: true },
+    });
+
+    if (
+      !adminUser ||
+      adminUser.role !== UserRole.ADMIN ||
+      !adminUser.isActive
+    ) {
+      throw new BadRequestException(
+        'Нужно выбрать активного пользователя с ролью admin',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.create({
+        data: {
+          name: dto.name,
+          slug: dto.slug,
+          description: dto.description,
+          heroTitle: dto.heroTitle,
+          heroSubtitle: dto.heroSubtitle,
+          heroDescription: dto.heroDescription,
+          heroImageUrl: dto.heroImageUrl,
+          seoTitle: dto.seoTitle,
+          seoDescription: dto.seoDescription,
+          phone: dto.phone,
+          address: dto.address,
+          timezone: dto.timezone ?? 'UTC',
+          workingHours: dto.workingHours as Prisma.InputJsonValue | undefined,
+          deliveryFee: dto.deliveryFee ?? 0,
+          minOrderAmount: dto.minOrderAmount ?? 0,
+          ...(dto.subscription
+            ? { subscription: new Date(dto.subscription) }
+            : {}),
+        },
+      });
+
+      await tx.userTenantAccess.create({
+        data: {
+          userId: adminUser.id,
+          tenantId: tenant.id,
+        },
+      });
+
+      if (!adminUser.primaryTenantId) {
+        await tx.user.update({
+          where: { id: adminUser.id },
+          data: { primaryTenantId: tenant.id },
+        });
+      }
+
+      return tenant;
     });
   }
 
