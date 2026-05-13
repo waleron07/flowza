@@ -264,8 +264,8 @@ describe('Сервис организаций', () => {
         description: 'Итальянская кухня',
         subscription: '2026-12-31T00:00:00.000Z',
         timezone: 'Europe/Moscow',
-        deliveryFee: 199,
-        minOrderAmount: 1000,
+        deliveryFee: '199',
+        minOrderAmount: '1000',
       }),
     ).resolves.toEqual({ id: 1, name: 'Roma Pizza' });
     const createTenantMockState = tenantCreateMock.mock as {
@@ -273,8 +273,8 @@ describe('Сервис организаций', () => {
         {
           data?: {
             timezone?: string;
-            deliveryFee?: number;
-            minOrderAmount?: number;
+            deliveryFee?: string;
+            minOrderAmount?: string;
           };
         },
       ];
@@ -283,8 +283,8 @@ describe('Сервис организаций', () => {
     expect(createTenantArg).toMatchObject({
       data: {
         timezone: 'Europe/Moscow',
-        deliveryFee: 199,
-        minOrderAmount: 1000,
+        deliveryFee: '199',
+        minOrderAmount: '1000',
       },
     });
     expect(userTenantAccessCreateMock).toHaveBeenCalledWith({
@@ -519,7 +519,8 @@ describe('Сервис организаций', () => {
           isActive: false,
           subscription: '2026-12-31T00:00:00.000Z',
           timezone: 'Europe/Moscow',
-          deliveryFee: 250,
+          workingHours: { from: '08:00', to: '22:00' },
+          deliveryFee: '250',
         },
       ),
     ).resolves.toEqual({ id: 10, isActive: false });
@@ -529,7 +530,8 @@ describe('Сервис организаций', () => {
           where?: { id?: number };
           data?: {
             timezone?: string;
-            deliveryFee?: number;
+            deliveryFee?: string;
+            workingHours?: { from: string; to: string };
             isActive?: boolean;
           };
         },
@@ -540,7 +542,8 @@ describe('Сервис организаций', () => {
       where: { id: 10 },
       data: {
         timezone: 'Europe/Moscow',
-        deliveryFee: 250,
+        workingHours: { from: '08:00', to: '22:00' },
+        deliveryFee: '250',
         isActive: false,
       },
     });

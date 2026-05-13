@@ -35,8 +35,8 @@ vi.mock("../../shared/api/catalogApi", () => ({
         address: null,
         phone: null,
         timezone: "UTC",
-        deliveryFee: 0,
-        minOrderAmount: 0,
+        deliveryFee: "",
+        minOrderAmount: "",
       },
       categories: [],
       products: [

@@ -90,14 +90,18 @@ export function MenuPage() {
               selectedOrganization.description}
           </Typography>
           <Stack direction="row" sx={sx.heroMeta}>
-            <Chip
-              label={`Доставка ${selectedOrganization.deliveryFee} RUB`}
-              variant="filled"
-            />
-            <Chip
-              label={`Мин. заказ ${selectedOrganization.minOrderAmount} RUB`}
-              variant="filled"
-            />
+            {selectedOrganization.deliveryFee ? (
+              <Chip
+                label={`Доставка ${selectedOrganization.deliveryFee}`}
+                variant="filled"
+              />
+            ) : null}
+            {selectedOrganization.minOrderAmount ? (
+              <Chip
+                label={`Мин. заказ ${selectedOrganization.minOrderAmount}`}
+                variant="filled"
+              />
+            ) : null}
             {selectedOrganization.address ? (
               <Chip label={selectedOrganization.address} variant="filled" />
             ) : null}

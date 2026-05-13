@@ -3,10 +3,16 @@ import {
   IsDateString,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
 } from 'class-validator';
+
+type WorkingHoursRangeDto = {
+  from?: string;
+  to?: string;
+};
 
 /**
  * Payload создания организации.
@@ -87,20 +93,18 @@ export class CreateTenantDto {
   @IsString({ message: 'Часовой пояс должен быть строкой' })
   timezone?: string;
 
-  /** Расписание работы организации в свободной текстовой форме. */
+  /** Диапазон рабочих часов организации. */
   @IsOptional()
-  @IsString({ message: 'Расписание работы должно быть строкой' })
-  workingHours?: string;
+  @IsObject({ message: 'Расписание работы должно быть объектом' })
+  workingHours?: WorkingHoursRangeDto;
 
-  /** Стоимость доставки в минимальных единицах валюты. */
+  /** Стоимость доставки в строковом формате. */
   @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Стоимость доставки должна быть целым числом' })
-  deliveryFee?: number;
+  @IsString({ message: 'Стоимость доставки должна быть строкой' })
+  deliveryFee?: string;
 
-  /** Минимальная сумма заказа в минимальных единицах валюты. */
+  /** Минимальная сумма заказа в строковом формате. */
   @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Минимальная сумма заказа должна быть целым числом' })
-  minOrderAmount?: number;
+  @IsString({ message: 'Минимальная сумма заказа должна быть строкой' })
+  minOrderAmount?: string;
 }

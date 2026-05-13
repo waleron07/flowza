@@ -30,8 +30,8 @@ type TenantCatalogApiResponse = {
     address: string | null;
     timezone: string;
     workingHours: Record<string, string> | null;
-    deliveryFee: number;
-    minOrderAmount: number;
+    deliveryFee: string;
+    minOrderAmount: string;
   };
   categories: Array<{
     id: number;
@@ -100,8 +100,8 @@ export async function getOrganizationsRequest() {
       address: null,
       phone: null,
       timezone: "UTC",
-      deliveryFee: 0,
-      minOrderAmount: 0,
+      deliveryFee: "",
+      minOrderAmount: "",
     })) satisfies Organization[];
   } catch (error) {
     throw new Error(

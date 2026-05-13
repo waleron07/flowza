@@ -16,8 +16,8 @@ const organization = {
   address: "Москва",
   phone: "+79990000000",
   timezone: "Europe/Moscow",
-  deliveryFee: 150,
-  minOrderAmount: 900,
+  deliveryFee: "150",
+  minOrderAmount: "900",
 };
 
 describe("syncOrganizationSeo", () => {

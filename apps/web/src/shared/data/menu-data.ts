@@ -19,8 +19,8 @@ export const organizations: Organization[] = [
     address: "Москва",
     phone: null,
     timezone: "Europe/Moscow",
-    deliveryFee: 199,
-    minOrderAmount: 1000,
+    deliveryFee: "199",
+    minOrderAmount: "1000",
   },
   {
     id: "tokyo-roll",
@@ -39,8 +39,8 @@ export const organizations: Organization[] = [
     address: "Москва",
     phone: null,
     timezone: "Europe/Moscow",
-    deliveryFee: 249,
-    minOrderAmount: 1200,
+    deliveryFee: "249",
+    minOrderAmount: "1200",
   },
 ];
 

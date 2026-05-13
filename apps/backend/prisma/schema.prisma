@@ -86,8 +86,8 @@ model Tenant {
   address          String?
   timezone         String               @default("UTC")
   workingHours     Json?
-  deliveryFee      Int                  @default(0)
-  minOrderAmount   Int                  @default(0)
+  deliveryFee      String               @default("")
+  minOrderAmount   String               @default("")
   subscription     DateTime?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
