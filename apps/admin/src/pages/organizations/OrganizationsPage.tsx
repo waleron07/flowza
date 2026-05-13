@@ -41,7 +41,8 @@ type OrganizationFormState = {
   phone: string;
   address: string;
   timezone: string;
-  workingHours: string;
+  workingHoursFrom: string;
+  workingHoursTo: string;
   deliveryFee: string;
   minOrderAmount: string;
   subscription: string;
@@ -66,7 +67,8 @@ type OrganizationProfileFormErrors = Partial<
     | "deliveryFee"
     | "minOrderAmount"
     | "subscription"
-    | "workingHours",
+    | "workingHoursFrom"
+    | "workingHoursTo",
     string
   >
 >;
@@ -117,10 +119,11 @@ const emptyOrganizationForm: OrganizationFormState = {
   seoDescription: "",
   phone: "",
   address: "",
-  timezone: "UTC",
-  workingHours: "",
-  deliveryFee: "0",
-  minOrderAmount: "0",
+  timezone: "Europe/Moscow",
+  workingHoursFrom: "",
+  workingHoursTo: "",
+  deliveryFee: "",
+  minOrderAmount: "",
   subscription: "",
   isActive: true,
 };
@@ -146,17 +149,108 @@ const emptyProductForm: ProductFormState = {
   isActive: true,
 };
 
-function stringifyWorkingHours(value: Record<string, unknown> | string | null) {
+function parseWorkingHoursRange(value: unknown) {
+  if (!value) {
+    return { from: "", to: "" };
+  }
+
   if (typeof value === "string") {
-    return value;
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return { from: "", to: "" };
+    }
+
+    try {
+      return parseWorkingHoursRange(JSON.parse(trimmedValue) as unknown);
+    } catch {
+      const match = trimmedValue.match(/(\d{2}:\d{2})\D+(\d{2}:\d{2})/);
+      return { from: match?.[1] ?? "", to: match?.[2] ?? "" };
+    }
   }
 
-  if (!value || Object.keys(value).length === 0) {
-    return "";
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return { from: "", to: "" };
   }
 
-  return JSON.stringify(value, null, 2);
+  const workingHours = value as Record<string, unknown>;
+  const from = typeof workingHours.from === "string" ? workingHours.from : "";
+  const to = typeof workingHours.to === "string" ? workingHours.to : "";
+
+  if (from || to) {
+    return { from, to };
+  }
+
+  const firstRangeValue = Object.values(workingHours).find(
+    (item): item is string => typeof item === "string",
+  );
+  const match = firstRangeValue?.match(/(\d{2}:\d{2})\D+(\d{2}:\d{2})/);
+
+  return { from: match?.[1] ?? "", to: match?.[2] ?? "" };
 }
+
+function formatPreviewWorkingHours(from: string, to: string) {
+  if (from && to) {
+    return `с ${from} до ${to}`;
+  }
+
+  if (from) {
+    return `с ${from}`;
+  }
+
+  if (to) {
+    return `до ${to}`;
+  }
+
+  return "";
+}
+
+function readImageFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Не удалось прочитать изображение"));
+    });
+    reader.addEventListener("error", () => {
+      reject(new Error("Не удалось прочитать изображение"));
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
+const russianTimezones = [
+  { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
+  { value: "Europe/Moscow", label: "Москва (UTC+3)" },
+  { value: "Europe/Kirov", label: "Киров (UTC+3)" },
+  { value: "Europe/Samara", label: "Самара (UTC+4)" },
+  { value: "Europe/Astrakhan", label: "Астрахань (UTC+4)" },
+  { value: "Europe/Saratov", label: "Саратов (UTC+4)" },
+  { value: "Europe/Ulyanovsk", label: "Ульяновск (UTC+4)" },
+  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
+  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
+  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
+  { value: "Asia/Barnaul", label: "Барнаул (UTC+7)" },
+  { value: "Asia/Tomsk", label: "Томск (UTC+7)" },
+  { value: "Asia/Novokuznetsk", label: "Новокузнецк (UTC+7)" },
+  { value: "Asia/Krasnoyarsk", label: "Красноярск (UTC+7)" },
+  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
+  { value: "Asia/Chita", label: "Чита (UTC+9)" },
+  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
+  { value: "Asia/Khandyga", label: "Хандыга (UTC+9)" },
+  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
+  { value: "Asia/Ust-Nera", label: "Усть-Нера (UTC+10)" },
+  { value: "Asia/Magadan", label: "Магадан (UTC+11)" },
+  { value: "Asia/Sakhalin", label: "Сахалин (UTC+11)" },
+  { value: "Asia/Srednekolymsk", label: "Среднеколымск (UTC+11)" },
+  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
+  { value: "Asia/Anadyr", label: "Анадырь (UTC+12)" },
+];
 
 const previewFallbackImage =
   "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80";
@@ -239,6 +333,7 @@ export function OrganizationsPage() {
     }
 
     const { tenant } = managementQuery.data;
+    const workingHoursRange = parseWorkingHoursRange(tenant.workingHours);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrganizationForm({
       adminUserId: "",
@@ -254,7 +349,8 @@ export function OrganizationsPage() {
       phone: tenant.phone ?? "",
       address: tenant.address ?? "",
       timezone: tenant.timezone,
-      workingHours: stringifyWorkingHours(tenant.workingHours),
+      workingHoursFrom: workingHoursRange.from,
+      workingHoursTo: workingHoursRange.to,
       deliveryFee: String(tenant.deliveryFee),
       minOrderAmount: String(tenant.minOrderAmount),
       subscription: tenant.subscription ? tenant.subscription.slice(0, 10) : "",
@@ -374,8 +470,19 @@ export function OrganizationsPage() {
       previewTitle.trim().toLowerCase()
       ? organizationForm.heroSubtitle
       : "";
-  const previewDeliveryFee = Number(organizationForm.deliveryFee || 0);
-  const previewMinOrderAmount = Number(organizationForm.minOrderAmount || 0);
+  const previewDeliveryFee = organizationForm.deliveryFee.trim();
+  const previewMinOrderAmount = organizationForm.minOrderAmount.trim();
+  const previewProfileItems = [
+    { label: "Телефон", value: organizationForm.phone },
+    { label: "Адрес", value: organizationForm.address },
+    {
+      label: "Рабочие часы",
+      value: formatPreviewWorkingHours(
+        organizationForm.workingHoursFrom,
+        organizationForm.workingHoursTo,
+      ),
+    },
+  ].filter((item) => item.value.trim().length > 0);
 
   const validateNewOrganizationForm = () => {
     const errors: NewOrganizationFormErrors = {};
@@ -425,17 +532,14 @@ export function OrganizationsPage() {
     if (!organizationForm.address.trim()) {
       errors.address = "Укажите адрес";
     }
-    if (!organizationForm.deliveryFee.trim()) {
-      errors.deliveryFee = "Укажите информацию о доставке";
-    }
-    if (!organizationForm.minOrderAmount.trim()) {
-      errors.minOrderAmount = "Укажите информацию о минимальном заказе";
-    }
     if (!organizationForm.subscription) {
       errors.subscription = "Укажите дату окончания подписки";
     }
-    if (!organizationForm.workingHours.trim()) {
-      errors.workingHours = "Укажите рабочие часы";
+    if (!organizationForm.workingHoursFrom) {
+      errors.workingHoursFrom = "Укажите начало рабочего дня";
+    }
+    if (!organizationForm.workingHoursTo) {
+      errors.workingHoursTo = "Укажите окончание рабочего дня";
     }
 
     setOrganizationProfileFormErrors(errors);
@@ -812,7 +916,21 @@ export function OrganizationsPage() {
         <>
           <Paper
             elevation={0}
-            sx={{ p: 3, borderRadius: 4, overflow: "hidden" }}
+            sx={{
+              p: 3,
+              borderRadius: 4,
+              overflow: "hidden",
+              color: "common.white",
+              bgcolor: "#0f172a",
+              "& .MuiTypography-root": {
+                color: "common.white",
+              },
+              "& .MuiChip-root": {
+                color: "common.white",
+                bgcolor: "rgba(255,255,255,0.12)",
+                borderColor: "rgba(255,255,255,0.4)",
+              },
+            }}
           >
             <Stack spacing={2.5}>
               <Typography variant="h5" fontWeight={700}>
@@ -827,6 +945,7 @@ export function OrganizationsPage() {
                   minHeight: 280,
                   color: "common.white",
                   backgroundColor: "grey.900",
+                  border: "1px solid rgba(255,255,255,0.18)",
                 }}
               >
                 <Box
@@ -880,15 +999,15 @@ export function OrganizationsPage() {
                       "Добавьте hero-текст, чтобы показать предложение организации."}
                   </Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
-                    {previewDeliveryFee > 0 ? (
+                    {previewDeliveryFee ? (
                       <Chip
-                        label={`Доставка ${previewDeliveryFee} RUB`}
+                        label={`Доставка ${previewDeliveryFee}`}
                         size="small"
                       />
                     ) : null}
-                    {previewMinOrderAmount > 0 ? (
+                    {previewMinOrderAmount ? (
                       <Chip
-                        label={`Мин. заказ ${previewMinOrderAmount} RUB`}
+                        label={`Мин. заказ ${previewMinOrderAmount}`}
                         size="small"
                       />
                     ) : null}
@@ -899,19 +1018,65 @@ export function OrganizationsPage() {
                 </Stack>
               </Paper>
 
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.5,
+                  borderRadius: 3,
+                  bgcolor: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Typography variant="h6">
+                    Информация об организации
+                  </Typography>
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    flexWrap="wrap"
+                    gap={1.5}
+                  >
+                    {previewProfileItems.map((item) => (
+                      <Box
+                        key={item.label}
+                        sx={{
+                          minWidth: { xs: "100%", md: 220 },
+                          p: 1.5,
+                          borderRadius: 2,
+                          bgcolor: "rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <Typography sx={{ opacity: 0.72 }} variant="caption">
+                          {item.label}
+                        </Typography>
+                        <Typography fontWeight={600} variant="body2">
+                          {item.value}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Stack>
+              </Paper>
+
               <Stack direction={{ xs: "column", lg: "row" }} spacing={2}>
                 <Paper
                   elevation={0}
-                  sx={{ p: 2.5, borderRadius: 3, flex: 1, bgcolor: "grey.50" }}
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 3,
+                    flex: 1,
+                    bgcolor: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                  }}
                 >
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Предпросмотр в поиске</Typography>
-                    <Typography color="primary.main" variant="body1">
+                    <Typography fontWeight={600} variant="body1">
                       {organizationForm.seoTitle ||
                         organizationForm.heroTitle ||
                         organizationForm.name}
                     </Typography>
-                    <Typography color="text.secondary" variant="body2">
+                    <Typography sx={{ opacity: 0.72 }} variant="body2">
                       /{organizationForm.slug || "organization-slug"}
                     </Typography>
                     <Typography variant="body2">
@@ -924,7 +1089,13 @@ export function OrganizationsPage() {
 
                 <Paper
                   elevation={0}
-                  sx={{ p: 2.5, borderRadius: 3, flex: 1, bgcolor: "grey.50" }}
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 3,
+                    flex: 1,
+                    bgcolor: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                  }}
                 >
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Категории в витрине</Typography>
@@ -951,17 +1122,14 @@ export function OrganizationsPage() {
                             <Typography fontWeight={600} variant="body2">
                               {category.name}
                             </Typography>
-                            <Typography
-                              color="text.secondary"
-                              variant="caption"
-                            >
+                            <Typography sx={{ opacity: 0.72 }} variant="caption">
                               {category.description || "Без описания"}
                             </Typography>
                           </Box>
                         </Stack>
                       ))
                     ) : (
-                      <Typography color="text.secondary" variant="body2">
+                      <Typography sx={{ opacity: 0.72 }} variant="body2">
                         После создания категорий здесь появится превью блоков
                         меню.
                       </Typography>
@@ -972,7 +1140,12 @@ export function OrganizationsPage() {
 
               <Paper
                 elevation={0}
-                sx={{ p: 2.5, borderRadius: 3, bgcolor: "grey.50" }}
+                sx={{
+                  p: 2.5,
+                  borderRadius: 3,
+                  bgcolor: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                }}
               >
                 <Stack spacing={1.5}>
                   <Typography variant="h6">Карточки товаров</Typography>
@@ -986,9 +1159,9 @@ export function OrganizationsPage() {
                             p: 1.5,
                             borderRadius: 3,
                             flex: 1,
-                            bgcolor: "common.white",
+                            bgcolor: "rgba(255,255,255,0.08)",
                             border: "1px solid",
-                            borderColor: "divider",
+                            borderColor: "rgba(255,255,255,0.16)",
                           }}
                         >
                           <Box
@@ -1023,7 +1196,7 @@ export function OrganizationsPage() {
                             <Typography fontWeight={700} variant="body1">
                               {product.name}
                             </Typography>
-                            <Typography color="text.secondary" variant="body2">
+                            <Typography sx={{ opacity: 0.72 }} variant="body2">
                               {product.description ||
                                 "Добавьте описание карточки товара."}
                             </Typography>
@@ -1035,7 +1208,7 @@ export function OrganizationsPage() {
                       ))}
                     </Stack>
                   ) : (
-                    <Typography color="text.secondary" variant="body2">
+                    <Typography sx={{ opacity: 0.72 }} variant="body2">
                       После создания товаров здесь появится превью карточек
                       каталога.
                     </Typography>
@@ -1145,8 +1318,15 @@ export function OrganizationsPage() {
                     }));
                   }}
                   required
+                  select
                   value={organizationForm.timezone}
-                />
+                >
+                  {russianTimezones.map((timezone) => (
+                    <MenuItem key={timezone.value} value={timezone.value}>
+                      {timezone.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Stack>
 
               <Autocomplete
@@ -1202,7 +1382,9 @@ export function OrganizationsPage() {
                 <TextField
                   error={Boolean(organizationProfileFormErrors.deliveryFee)}
                   fullWidth
-                  helperText={organizationProfileFormErrors.deliveryFee}
+                  helperText={
+                    organizationProfileFormErrors.deliveryFee ?? "Необязательно"
+                  }
                   label="Стоимость доставки"
                   onChange={(event) => {
                     setOrganizationProfileFormErrors((current) => ({
@@ -1214,13 +1396,15 @@ export function OrganizationsPage() {
                       deliveryFee: event.target.value,
                     }));
                   }}
-                  required
                   value={organizationForm.deliveryFee}
                 />
                 <TextField
                   error={Boolean(organizationProfileFormErrors.minOrderAmount)}
                   fullWidth
-                  helperText={organizationProfileFormErrors.minOrderAmount}
+                  helperText={
+                    organizationProfileFormErrors.minOrderAmount ??
+                    "Необязательно"
+                  }
                   label="Минимальный заказ"
                   onChange={(event) => {
                     setOrganizationProfileFormErrors((current) => ({
@@ -1232,7 +1416,6 @@ export function OrganizationsPage() {
                       minOrderAmount: event.target.value,
                     }));
                   }}
-                  required
                   value={organizationForm.minOrderAmount}
                 />
               </Stack>
@@ -1275,26 +1458,48 @@ export function OrganizationsPage() {
                 </TextField>
               </Stack>
 
-              <TextField
-                error={Boolean(organizationProfileFormErrors.workingHours)}
-                fullWidth
-                helperText={organizationProfileFormErrors.workingHours}
-                label="Рабочие часы"
-                multiline
-                minRows={4}
-                onChange={(event) => {
-                  setOrganizationProfileFormErrors((current) => ({
-                    ...current,
-                    workingHours: undefined,
-                  }));
-                  setOrganizationForm((current) => ({
-                    ...current,
-                    workingHours: event.target.value,
-                  }));
-                }}
-                required
-                value={organizationForm.workingHours}
-              />
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <TextField
+                  error={Boolean(organizationProfileFormErrors.workingHoursFrom)}
+                  fullWidth
+                  helperText={organizationProfileFormErrors.workingHoursFrom}
+                  label="Рабочие часы от"
+                  onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      workingHoursFrom: undefined,
+                    }));
+                    setOrganizationForm((current) => ({
+                      ...current,
+                      workingHoursFrom: event.target.value,
+                    }));
+                  }}
+                  required
+                  type="time"
+                  value={organizationForm.workingHoursFrom}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  error={Boolean(organizationProfileFormErrors.workingHoursTo)}
+                  fullWidth
+                  helperText={organizationProfileFormErrors.workingHoursTo}
+                  label="Рабочие часы до"
+                  onChange={(event) => {
+                    setOrganizationProfileFormErrors((current) => ({
+                      ...current,
+                      workingHoursTo: undefined,
+                    }));
+                    setOrganizationForm((current) => ({
+                      ...current,
+                      workingHoursTo: event.target.value,
+                    }));
+                  }}
+                  required
+                  type="time"
+                  value={organizationForm.workingHoursTo}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Stack>
 
               <Button
                 disabled={
@@ -1315,11 +1520,14 @@ export function OrganizationsPage() {
                       phone: organizationForm.phone.trim(),
                       address: organizationForm.address.trim(),
                       timezone: organizationForm.timezone.trim(),
-                      workingHours: organizationForm.workingHours.trim(),
-                      deliveryFee: Number(organizationForm.deliveryFee || 0),
-                      minOrderAmount: Number(
-                        organizationForm.minOrderAmount || 0,
-                      ),
+                      workingHours: {
+                        from: organizationForm.workingHoursFrom,
+                        to: organizationForm.workingHoursTo,
+                      },
+                      deliveryFee:
+                        organizationForm.deliveryFee.trim() || undefined,
+                      minOrderAmount:
+                        organizationForm.minOrderAmount.trim() || undefined,
                       subscription: organizationForm.subscription || undefined,
                       isActive: organizationForm.isActive,
                     });
@@ -1445,24 +1653,86 @@ export function OrganizationsPage() {
                 required
                 value={organizationForm.heroDescription}
               />
-              <TextField
-                error={Boolean(organizationLandingFormErrors.heroImageUrl)}
-                fullWidth
-                helperText={organizationLandingFormErrors.heroImageUrl}
-                label="Изображение главного экрана"
-                onChange={(event) => {
-                  setOrganizationLandingFormErrors((current) => ({
-                    ...current,
-                    heroImageUrl: undefined,
-                  }));
-                  setOrganizationForm((current) => ({
-                    ...current,
-                    heroImageUrl: event.target.value,
-                  }));
-                }}
-                required
-                value={organizationForm.heroImageUrl}
-              />
+              <Stack spacing={1}>
+                <Typography fontWeight={600} variant="body2">
+                  Изображение главного экрана
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                  <Button component="label" variant="outlined">
+                    Выбрать изображение
+                    <Box
+                      component="input"
+                      accept="image/*"
+                      aria-label="Изображение главного экрана"
+                      hidden
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+
+                        setOrganizationLandingFormErrors((current) => ({
+                          ...current,
+                          heroImageUrl: undefined,
+                        }));
+
+                        if (!file) {
+                          return;
+                        }
+
+                        if (!file.type.startsWith("image/")) {
+                          setOrganizationLandingFormErrors((current) => ({
+                            ...current,
+                            heroImageUrl: "Выберите файл изображения",
+                          }));
+                          return;
+                        }
+
+                        try {
+                          const heroImageUrl = await readImageFileAsDataUrl(
+                            file,
+                          );
+                          setOrganizationForm((current) => ({
+                            ...current,
+                            heroImageUrl,
+                          }));
+                        } catch (error) {
+                          setOrganizationLandingFormErrors((current) => ({
+                            ...current,
+                            heroImageUrl:
+                              error instanceof Error
+                                ? error.message
+                                : "Не удалось прочитать изображение",
+                          }));
+                        } finally {
+                          event.target.value = "";
+                        }
+                      }}
+                      type="file"
+                    />
+                  </Button>
+                  {organizationForm.heroImageUrl ? (
+                    <Button
+                      color="secondary"
+                      onClick={() => {
+                        setOrganizationForm((current) => ({
+                          ...current,
+                          heroImageUrl: "",
+                        }));
+                      }}
+                      variant="outlined"
+                    >
+                      Удалить изображение
+                    </Button>
+                  ) : null}
+                </Stack>
+                {organizationLandingFormErrors.heroImageUrl ? (
+                  <Typography color="error" variant="caption">
+                    {organizationLandingFormErrors.heroImageUrl}
+                  </Typography>
+                ) : (
+                  <Typography color="text.secondary" variant="caption">
+                    Выберите файл изображения, он сразу появится в предпросмотре.
+                  </Typography>
+                )}
+              </Stack>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
                   error={Boolean(organizationLandingFormErrors.seoTitle)}

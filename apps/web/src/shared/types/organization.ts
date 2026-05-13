@@ -13,6 +13,6 @@ export type Organization = {
   address: string | null;
   phone: string | null;
   timezone: string;
-  deliveryFee: number;
-  minOrderAmount: number;
+  deliveryFee: string;
+  minOrderAmount: string;
 };

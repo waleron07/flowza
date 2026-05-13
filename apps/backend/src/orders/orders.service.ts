@@ -73,6 +73,16 @@ type OrderCommentView = {
 
 type OrderTimelineType = 'ALL' | 'EVENT' | 'COMMENT';
 
+function parseAmountText(value: string | number | null | undefined) {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  const normalized = value?.replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0];
+
+  return normalized ? Number(normalized) : 0;
+}
+
 type OrderCommentRepository = {
   findMany(args: {
     where: { orderId: number };
@@ -273,10 +283,11 @@ export class OrdersService {
     });
 
     const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const deliveryFee = tenant.deliveryFee;
+    const deliveryFee = parseAmountText(tenant.deliveryFee);
     const finalAmount = subtotal + deliveryFee;
+    const minOrderAmount = parseAmountText(tenant.minOrderAmount);
 
-    if (subtotal < tenant.minOrderAmount) {
+    if (subtotal < minOrderAmount) {
       throw new BadRequestException(
         `Минимальная сумма заказа: ${tenant.minOrderAmount}`,
       );

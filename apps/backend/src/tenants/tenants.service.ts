@@ -267,8 +267,8 @@ export class TenantsService {
           address: dto.address,
           timezone: dto.timezone ?? 'UTC',
           workingHours: dto.workingHours as Prisma.InputJsonValue | undefined,
-          deliveryFee: dto.deliveryFee ?? 0,
-          minOrderAmount: dto.minOrderAmount ?? 0,
+          deliveryFee: dto.deliveryFee ?? '',
+          minOrderAmount: dto.minOrderAmount ?? '',
           ...(dto.subscription
             ? { subscription: new Date(dto.subscription) }
             : {}),

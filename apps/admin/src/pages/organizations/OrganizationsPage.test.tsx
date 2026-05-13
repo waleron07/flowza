@@ -44,9 +44,9 @@ const managementView = {
     phone: "+79990000000",
     address: "Москва",
     timezone: "Europe/Moscow",
-    workingHours: { mon: "08:00-22:00" },
-    deliveryFee: 150,
-    minOrderAmount: 900,
+    workingHours: { from: "08:00", to: "22:00" },
+    deliveryFee: "150",
+    minOrderAmount: "900",
     subscription: "2026-12-31T00:00:00.000Z",
   },
   categories: [
@@ -176,6 +176,10 @@ describe("OrganizationsPage", () => {
     expect(screen.getAllByText(/десерты/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/наполеон/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/предпросмотр в поиске/i)).toBeInTheDocument();
+    expect(screen.getByText(/информация об организации/i)).toBeInTheDocument();
+    expect(screen.getByText("+79990000000")).toBeInTheDocument();
+    expect(screen.getAllByText("Москва").length).toBeGreaterThan(0);
+    expect(screen.getByText(/с 08:00 до 22:00/i)).toBeInTheDocument();
   });
 
   it("позволяет superAdmin заполнить форму новой организации", async () => {
@@ -293,11 +297,41 @@ describe("OrganizationsPage", () => {
         phone: "+79990000000",
         address: "Москва",
         timezone: "Europe/Moscow",
-        workingHours: JSON.stringify({ mon: "08:00-22:00" }, null, 2),
-        deliveryFee: 150,
-        minOrderAmount: 900,
+        workingHours: { from: "08:00", to: "22:00" },
+        deliveryFee: "150",
+        minOrderAmount: "900",
         subscription: "2026-12-31",
         isActive: true,
+      });
+    });
+  });
+
+  it("позволяет выбрать файл изображения главного экрана", async () => {
+    const user = userEvent.setup();
+    mockedUpdateOrganizationMutateAsync.mockResolvedValue({ id: 10 });
+
+    renderPage();
+
+    const imageInput = screen.getByLabelText(
+      /изображение главного экрана/i,
+    ) as HTMLInputElement;
+    const imageFile = new File(["hero image"], "hero.png", {
+      type: "image/png",
+    });
+
+    await user.upload(imageInput, imageFile);
+    await user.click(
+      screen.getByRole("button", { name: /сохранить главную страницу/i }),
+    );
+
+    await waitFor(() => {
+      expect(mockedUpdateOrganizationMutateAsync).toHaveBeenCalledWith({
+        heroTitle: "Свежая выпечка и кофе",
+        heroSubtitle: "Завтраки весь день",
+        heroDescription: "Теплая витрина, десерты и кофе в центре города.",
+        heroImageUrl: expect.stringMatching(/^data:image\/png;base64,/),
+        seoTitle: "Flowza Cafe",
+        seoDescription: "Кафе и десерты",
       });
     });
   });
